@@ -145,6 +145,10 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 
 	err = b.questionService.AnswerQuestion(ctx, user, q, userOption)
 	if err != nil {
+		if errors.Is(err, data.ErrAlreadyExists) {
+			ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("Один раз ответил - достаточно.").WithShowAlert())
+			return nil
+		}
 		return err
 	}
 

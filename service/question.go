@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/akionka/akionkabot/d2pt"
@@ -44,19 +45,26 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 		return s.fetchQuestionImages(ctx, q)
 	}
 
-	qr, err := s.questionFetcher.FetchQuestion(ctx, isWon)
-	if err != nil {
-		return nil, err
+	for range 4 {
+		qr, err := s.questionFetcher.FetchQuestion(ctx, isWon)
+		if err != nil {
+			return nil, err
+		}
+
+		q = s.convertQuestionResponse(qr)
+
+		q, err = s.repo.SaveQuestion(ctx, q)
+		if err != nil {
+			if errors.Is(err, data.ErrAlreadyExists) {
+				continue
+			}
+			return nil, err
+		}
+
+		return s.fetchQuestionImages(ctx, q)
 	}
 
-	q = s.convertQuestionResponse(qr)
-
-	q, err = s.repo.SaveQuestion(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.fetchQuestionImages(ctx, q)
+	return nil, data.ErrAlreadyExists
 }
 
 func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, userOption *data.UserOption) error {

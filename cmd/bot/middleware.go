@@ -6,7 +6,6 @@ import (
 
 	"github.com/akionka/akionkabot/data"
 	"github.com/akionka/akionkabot/service"
-	"github.com/jackc/pgx/v5"
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
 )
@@ -82,7 +81,7 @@ func userMiddleware(service *service.UserService) func(*th.Context, telego.Updat
 		user, err := service.GetUserByTelegramID(ctx, fromUser.ID)
 		if err != nil {
 			switch {
-			case errors.Is(err, pgx.ErrNoRows):
+			case errors.Is(err, data.ErrNotFound):
 				user, err = service.CreateUser(ctx, &data.User{
 					TelegramID: fromUser.ID,
 					Username:   fromUser.Username,
