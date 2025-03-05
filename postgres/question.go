@@ -245,7 +245,33 @@ func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, q *data.Qu
 func (r *QuestionRepository) updateQuestionImageTx(ctx context.Context, tx pgx.Tx, q *data.Question, fileID string) error {
 	const sql = `UPDATE questions SET telegram_file_id = $1 WHERE question_id = $2`
 
-	_, err := tx.Exec(ctx, sql,fileID, q.ID)
+	_, err := tx.Exec(ctx, sql, fileID, q.ID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *QuestionRepository) UpdateOptionImage(ctx context.Context, q *data.Question, o *data.Option, fileID string) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err = transaction(ctx, tx, "UpdateOptionImage", func() error {
+		return r.updateOptionImageTx(ctx, tx, q, o, fileID)
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *QuestionRepository) updateOptionImageTx(ctx context.Context, tx pgx.Tx, q *data.Question, o *data.Option, fileID string) error {
+	const sql = `UPDATE question_options SET telegram_file_id = $1 WHERE question_id = $2 AND hero_id = $3`
+
+	_, err := tx.Exec(ctx, sql, fileID, q.ID, o.Hero.ID)
 	if err != nil {
 		return err
 	}

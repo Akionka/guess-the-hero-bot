@@ -133,7 +133,6 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		}
 	}
 
-	_ = user
 	err = b.questionService.AnswerQuestion(ctx, user, q, userOption)
 	if err != nil {
 		return err
@@ -144,12 +143,12 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		return err
 	}
 
-	file, err := b.prepareQuestionImageFile(ctx, q, userOption)
+	file, err := b.prepareOptionImageFile(ctx, q, userOption)
 	if err != nil {
 		return err
 	}
 
-	_, err = ctx.Bot().EditMessageMedia(ctx, &telego.EditMessageMediaParams{
+	editedMsg, err := ctx.Bot().EditMessageMedia(ctx, &telego.EditMessageMediaParams{
 		ChatID:    tu.ID(query.From.ID),
 		MessageID: query.Message.GetMessageID(),
 		Media:     tu.MediaPhoto(file),
@@ -167,6 +166,18 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 	})
 	if err != nil {
 		return err
+	}
+
+	if len(userOption.TelegramFileID) == 0 {
+		fileID := ""
+		maxWidth := -1
+		for _, photo := range editedMsg.Photo {
+			if photo.Width > maxWidth {
+				maxWidth = photo.Width
+				fileID = photo.FileID
+			}
+		}
+		return b.questionService.UpdateOptionImage(ctx, q, &userOption.Option, fileID)
 	}
 
 	return err
@@ -203,6 +214,22 @@ func (b *Bot) prepareQuestionImageFile(_ *th.Context, q *data.Question, userOpti
 
 	if len(q.TelegramFileID) > 0 {
 		imageFile = tu.FileFromID(q.TelegramFileID)
+	} else {
+		collage, err := b.collager.Collage(q.Options, q.Items, userOption)
+		if err != nil {
+			return imageFile, err
+		}
+		imageFile = tu.File(&QuestionImage{q: q, Image: data.Image{Image: collage}})
+	}
+
+	return imageFile, nil
+}
+
+func (b *Bot) prepareOptionImageFile(_ *th.Context, q *data.Question, userOption *data.UserOption) (telego.InputFile, error) {
+	var imageFile telego.InputFile
+
+	if len(userOption.TelegramFileID) > 0 {
+		imageFile = tu.FileFromID(userOption.TelegramFileID)
 	} else {
 		collage, err := b.collager.Collage(q.Options, q.Items, userOption)
 		if err != nil {

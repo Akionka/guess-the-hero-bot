@@ -33,6 +33,7 @@ type QuestionRepository interface {
 	SaveQuestion(ctx context.Context, question *data.Question) (*data.Question, error)
 	AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, answer *data.UserOption) error
 	UpdateQuestionImage(ctx context.Context, question *data.Question, fileID string) error
+	UpdateOptionImage(ctx context.Context, question *data.Question, userOption *data.Option, fileID string) error
 }
 
 var _ QuestionRepository = (*postgres.QuestionRepository)(nil)
