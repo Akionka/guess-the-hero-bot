@@ -1,0 +1,57 @@
+package main
+
+import (
+    "strconv"
+
+	"github.com/akionka/akionkabot/data"
+)
+
+templ questionTempl(mmr int, items []data.Item) {
+    <b><i>УГАДАЙ ГЕРОЯ</i></b> @nl()
+    @nl()
+    На какого героя были собраны следующие предметы?
+    @nl()
+    Средний MMR игры — <b>{ strconv.Itoa(mmr) }</b>.
+    @nl()
+    @nl()
+    <b>Предметы:</b>
+    @nl()
+    for _, item := range items {
+    — <i>{ item.DisplayName }</i>@nl()
+    }
+}
+
+templ answerTempl(guessedHero, correctHero data.Hero, pos data.Position, isWon bool) {
+    <b>
+    Позиция: <i>{ pos.String() } { pos.ToEmoji() }</i> @nl()
+    Результат: <i>
+    if isWon {
+        Победа 🏆
+    } else {
+        Поражение 🥀
+    }
+    </i>@nl()
+    Ваш ответ: <i>{ guessedHero.DisplayName }</i> @nl()
+    Правильный ответ: <i>{ correctHero.DisplayName }
+    if guessedHero == correctHero {
+        ✅
+    } else {
+        ❌
+    } </i>
+    </b>@nl()
+}
+
+templ matchCredentials(heroName string, matchID int64, playerID int64, playerProName string) {
+    <b>
+    <a href={ templ.URL("https://dota2protracker.com/hero/"+heroName) } >Страница героя (D2PT)</a> @nl()
+    <a href={ templ.URL("https://stratz.com/matches/"+strconv.FormatInt(matchID, 10)) }>Страница матча (Stratz)</a> @nl()
+    <a href={ templ.URL("https://stratz.com/players/"+strconv.FormatInt(playerID, 10)) }>Страница игрока (Stratz)</a> @nl()
+    if len(playerProName) > 0 {
+        <a href={ templ.URL("https://dota2protracker.com/player/"+playerProName) }>Страница про-игрока (D2PT)</a> @nl()
+    }
+    </b> @nl()
+}
+
+templ nl() {
+    @templ.Raw("\n")
+}
