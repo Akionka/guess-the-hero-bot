@@ -5,17 +5,41 @@ import (
 	"errors"
 	"fmt"
 	"image/jpeg"
-	"io"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/akionka/akionkabot/data"
 	"github.com/google/uuid"
 	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegoapi"
 	th "github.com/mymmrac/telego/telegohandler"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
+
+type QuestionImage struct {
+	data.Image
+	q   *data.Question
+	buf *bytes.Reader
+}
+
+var _ telegoapi.NamedReader = (*QuestionImage)(nil)
+
+func (qi *QuestionImage) Name() string {
+	return qi.q.ID.String()
+}
+
+func (qi *QuestionImage) Read(b []byte) (int, error) {
+	if qi.buf == nil {
+		var buf bytes.Buffer
+
+		if err := jpeg.Encode(&buf, qi.Image, &jpeg.Options{Quality: 100}); err != nil {
+			return 0, err
+		}
+		qi.buf = bytes.NewReader(buf.Bytes())
+	}
+
+	return qi.buf.Read(b)
+}
 
 func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Message) error {
 	user, ok := getCtxUser(ctx)
@@ -33,27 +57,46 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Message) erro
 		return err
 	}
 
-	file, err := b.prepareQuestionImage(ctx, q, nil)
-	if err != nil {
-		return err
+	var file telego.InputFile
+
+	if len(q.TelegramFileID) > 0 {
+		file = tu.FileFromID(q.TelegramFileID)
+	} else {
+		file, err = b.prepareQuestionImageFile(ctx, q, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	keyboard := b.prepareQuestionKeyboard(ctx, q, nil)
 
-	_, err = ctx.Bot().SendPhoto(ctx, tu.Photo(
-		update.Chat.ChatID(),
-		tu.File(file)).
-		WithCaption(msg).
-		WithReplyMarkup(keyboard).
-		WithParseMode(telego.ModeHTML),
+	sentMsg, err := ctx.Bot().SendPhoto(ctx,
+		tu.Photo(
+			update.Chat.ChatID(),
+			file,
+		).
+			WithCaption(msg).
+			WithReplyMarkup(keyboard).
+			WithParseMode(telego.ModeHTML),
 	)
 	if err != nil {
 		return err
 	}
+
+	if len(q.TelegramFileID) == 0 {
+		fileID := ""
+		maxWidth := -1
+		for _, photo := range sentMsg.Photo {
+			if photo.Width > maxWidth {
+				maxWidth = photo.Width
+				fileID = photo.FileID
+			}
+		}
+		return b.questionService.UpdateQuestionImage(ctx, q, fileID)
+	}
 	return nil
 
 }
-
 func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) error {
 	parts := strings.SplitN(query.Data, "_", 3)
 	if len(parts) != 3 {
@@ -101,16 +144,15 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		return err
 	}
 
-	file, err := b.prepareQuestionImage(ctx, q, userOption)
+	file, err := b.prepareQuestionImageFile(ctx, q, userOption)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
 	_, err = ctx.Bot().EditMessageMedia(ctx, &telego.EditMessageMediaParams{
 		ChatID:    tu.ID(query.From.ID),
 		MessageID: query.Message.GetMessageID(),
-		Media:     tu.MediaPhoto(tu.File(file)),
+		Media:     tu.MediaPhoto(file),
 	})
 	if err != nil {
 		return err
@@ -156,24 +198,20 @@ func (b *Bot) prepareQuestionMessage(ctx *th.Context, q *data.Question, userOpti
 	return buf.String(), nil
 }
 
-func (b *Bot) prepareQuestionImage(_ *th.Context, q *data.Question, userOption *data.UserOption) (*os.File, error) {
-	collage, err := b.collager.Collage(q.Options, q.Items, userOption)
-	if err != nil {
-		return nil, err
+func (b *Bot) prepareQuestionImageFile(_ *th.Context, q *data.Question, userOption *data.UserOption) (telego.InputFile, error) {
+	var imageFile telego.InputFile
+
+	if len(q.TelegramFileID) > 0 {
+		imageFile = tu.FileFromID(q.TelegramFileID)
+	} else {
+		collage, err := b.collager.Collage(q.Options, q.Items, userOption)
+		if err != nil {
+			return imageFile, err
+		}
+		imageFile = tu.File(&QuestionImage{q: q, Image: data.Image{Image: collage}})
 	}
 
-	tmpFile, err := os.CreateTemp("", "")
-	if err != nil {
-		return nil, err
-	}
-
-	err = jpeg.Encode(tmpFile, collage, &jpeg.Options{Quality: 100})
-	if err != nil {
-		return nil, err
-	}
-	tmpFile.Seek(0, io.SeekStart)
-
-	return tmpFile, nil
+	return imageFile, nil
 }
 
 func (b *Bot) prepareQuestionKeyboard(_ *th.Context, q *data.Question, userOption *data.Option) *telego.InlineKeyboardMarkup {

@@ -65,6 +65,10 @@ func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, q
 	return s.repo.AnswerQuestion(ctx, user, question, userOption)
 }
 
+func (s *QuestionService) UpdateQuestionImage(ctx context.Context, q *data.Question, fileID string) error {
+	return s.repo.UpdateQuestionImage(ctx, q, fileID)
+}
+
 func (s *QuestionService) fetchQuestionImages(ctx context.Context, q *data.Question) (*data.Question, error) {
 	for i, option := range q.Options {
 		image, err := s.heroImageFetcher.FetchImage(ctx, option.Hero.ShortName)

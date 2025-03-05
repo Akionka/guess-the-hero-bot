@@ -46,7 +46,7 @@ func (r *QuestionRepository) GetQuestion(ctx context.Context, id uuid.UUID) (*da
 
 func (r *QuestionRepository) getQuestionTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*data.Question, error) {
 	const sql = `
-	SELECT q.question_id, q.match_id, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at
+	SELECT q.question_id, q.match_id, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at, q.telegram_file_id
 	FROM questions q
 	WHERE q.question_id = $1
 	LIMIT 1`
@@ -86,7 +86,7 @@ func (r *QuestionRepository) GetQuestionAvailableForUser(ctx context.Context, id
 
 func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*data.Question, error) {
 	const sql = `
-	SELECT q.question_id, q.match_id, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at
+	SELECT q.question_id, q.match_id, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at, q.telegram_file_id
 	FROM questions q
 	LEFT JOIN user_questions uq ON q.question_id = uq.question_id AND uq.user_id = $1
 	WHERE uq.question_id IS NULL
@@ -102,7 +102,7 @@ func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, 
 
 func (r *QuestionRepository) enrichQuestionTx(ctx context.Context, tx pgx.Tx, q *data.Question) (*data.Question, error) {
 	const heroSQL = `
-	SELECT qo.is_correct, h.hero_id, h.display_name, h.short_name
+	SELECT qo.is_correct, h.hero_id, h.display_name, h.short_name, qo.telegram_file_id
 	FROM question_options qo
 	INNER JOIN heroes h ON qo.hero_id = h.hero_id
 	WHERE qo.question_id = $1
@@ -166,14 +166,14 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 
 func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, q *data.Question) (uuid.UUID, error) {
 	const sql = `
-	INSERT INTO questions (question_id, match_id, player_id, player_name, player_is_pro, player_pos, player_mmr, is_won, created_at) VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	INSERT INTO questions (question_id, match_id, player_id, player_name, player_is_pro, player_pos, player_mmr, is_won, created_at, telegram_file_id) VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	RETURNING question_id`
 
 	qID := uuid.Nil
 
 	rows, err := tx.Query(ctx, sql,
-		q.ID, q.MatchID, q.PlayerID, q.PlayerName, q.PlayerIsPro, q.PlayerPos, q.PlayerMMR, q.IsWon, q.CreatedAt,
+		q.ID, q.MatchID, q.PlayerID, q.PlayerName, q.PlayerIsPro, q.PlayerPos, q.PlayerMMR, q.IsWon, q.CreatedAt, q.TelegramFileID,
 	)
 	if err != nil {
 		return qID, err
@@ -190,8 +190,8 @@ func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, q *d
 		return qID, err
 	}
 
-	_, err = tx.CopyFrom(ctx, pgx.Identifier{"question_options"}, []string{"question_id", "hero_id", "is_correct"}, pgx.CopyFromSlice(len(q.Options), func(i int) ([]any, error) {
-		return []any{qID, q.Options[i].Hero.ID, q.Options[i].IsCorrect}, nil
+	_, err = tx.CopyFrom(ctx, pgx.Identifier{"question_options"}, []string{"question_id", "hero_id", "is_correct", "telegram_file_id"}, pgx.CopyFromSlice(len(q.Options), func(i int) ([]any, error) {
+		return []any{qID, q.Options[i].Hero.ID, q.Options[i].IsCorrect, q.Options[i].TelegramFileID}, nil
 	}))
 	if err != nil {
 		return qID, err
@@ -220,6 +220,32 @@ func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, u 
 	($1, $2, $3, $4, $5)`
 
 	_, err := tx.Exec(ctx, sql, answer.ID, u.ID, q.ID, answer.Hero.ID, answer.AnsweredAt)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, q *data.Question, fileID string) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err = transaction(ctx, tx, "UpdateQuestionImage", func() error {
+		return r.updateQuestionImageTx(ctx, tx, q, fileID)
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *QuestionRepository) updateQuestionImageTx(ctx context.Context, tx pgx.Tx, q *data.Question, fileID string) error {
+	const sql = `UPDATE questions SET telegram_file_id = $1 WHERE question_id = $2`
+
+	_, err := tx.Exec(ctx, sql,fileID, q.ID)
 	if err != nil {
 		return err
 	}

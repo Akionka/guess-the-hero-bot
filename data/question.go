@@ -20,12 +20,14 @@ type Question struct {
 	Items   []Item   `db:"-"`
 	Options []Option `db:"-"`
 
-	CreatedAt time.Time `db:"created_at"`
+	TelegramFileID string    `db:"telegram_file_id"`
+	CreatedAt      time.Time `db:"created_at"`
 }
 
 type Option struct {
-	Hero      `db:"-"`
-	IsCorrect bool `db:"is_correct"`
+	Hero           `db:"-"`
+	IsCorrect      bool   `db:"is_correct"`
+	TelegramFileID string `db:"telegram_file_id"`
 }
 
 type UserOption struct {
