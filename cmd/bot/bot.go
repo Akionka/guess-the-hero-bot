@@ -36,6 +36,8 @@ func (b *Bot) Start(ctx context.Context) {
 	bh.Handle(b.handleQuestionRequest, th.Or(th.CommandEqual("question"), th.CommandEqual("start"), th.CallbackDataEqual("next_question")))
 	bh.HandleCallbackQuery(b.handleQuestionAnswer, th.CallbackDataPrefix("answer_"))
 
+	bh.HandleInlineQuery(b.handleQuestionShare, th.InlineQueryPrefix("question "))
+
 	done := make(chan struct{}, 1)
 
 	go func() {

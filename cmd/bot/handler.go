@@ -158,23 +158,35 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		return err
 	}
 
+	var (
+		messageID int
+		chatID    telego.ChatID
+	)
+
+	if query.Message != nil {
+		messageID = query.Message.GetMessageID()
+		chatID = tu.ID(query.From.ID)
+	}
+
 	editedMsg, err := ctx.Bot().EditMessageMedia(ctx, &telego.EditMessageMediaParams{
-		ChatID:    tu.ID(query.From.ID),
-		MessageID: query.Message.GetMessageID(),
-		Media:     tu.MediaPhoto(file),
+		ChatID:          chatID,
+		MessageID:       messageID,
+		InlineMessageID: query.InlineMessageID,
+		Media:           tu.MediaPhoto(file),
 	})
 	if err != nil {
 		return err
 	}
+
 	_, err = ctx.Bot().EditMessageCaption(ctx, &telego.EditMessageCaptionParams{
-		ChatID:          tu.ID(query.From.ID),
-		MessageID:       query.Message.GetMessageID(),
+		ChatID:          chatID,
+		MessageID:       messageID,
 		InlineMessageID: query.InlineMessageID,
 		Caption:         msg,
 		ParseMode:       telego.ModeHTML,
 		ReplyMarkup: tu.InlineKeyboard(
 			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Следующий вопрос").WithCallbackData("next_question")),
-			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Поделиться").WithSwitchInlineQuery("question " + q.ID.String())),
+			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Поделиться").WithSwitchInlineQuery("question "+q.ID.String())),
 		),
 	})
 	if err != nil {
@@ -194,6 +206,55 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 	}
 
 	return err
+}
+
+func (b *Bot) handleQuestionShare(ctx *th.Context, query telego.InlineQuery) error {
+	qID, err := uuid.Parse(strings.TrimPrefix(strings.TrimSpace(query.Query), "question "))
+	if err != nil {
+		return nil
+	}
+
+	q, err := b.questionService.GetQuestion(ctx, qID)
+	if err != nil {
+		return err
+	}
+
+	text, err := b.prepareQuestionText(ctx, q, nil)
+	if err != nil {
+		return err
+	}
+
+	var file telego.InputFile
+
+	if len(q.TelegramFileID) > 0 {
+		file = tu.FileFromID(q.TelegramFileID)
+	} else {
+		file, err = b.prepareQuestionImageFile(ctx, q, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	keyboard := b.prepareQuestionKeyboard(ctx, q, nil)
+
+	err = b.AnswerInlineQuery(
+		ctx,
+		tu.InlineQuery(
+			query.ID,
+			tu.ResultCachedPhoto(
+				qID.String(),
+				file.FileID,
+			).
+				WithCaption(text).
+				WithParseMode(telego.ModeHTML).
+				WithReplyMarkup(keyboard).WithTitle("Поделитьcя вопросом "+q.ID.String()),
+		),
+	)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (b *Bot) prepareQuestionText(ctx *th.Context, q *data.Question, userOption *data.UserOption) (string, error) {
