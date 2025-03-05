@@ -1,13 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
-	"sync"
 
 	"github.com/akionka/akionkabot/data"
 	"github.com/anthonynsimon/bild/transform"
+	"github.com/patrickmn/go-cache"
 )
 
 type Collager interface {
@@ -15,17 +16,12 @@ type Collager interface {
 }
 
 type DefaultCollager struct {
-	hMu            sync.Mutex
-	heroImageCache map[int]image.Image
-
-	iMu            sync.Mutex
-	itemImageCache map[int]image.Image
+	cache *cache.Cache
 }
 
-func NewDefaultCollager() *DefaultCollager {
+func NewDefaultCollager(cache *cache.Cache) *DefaultCollager {
 	return &DefaultCollager{
-		heroImageCache: make(map[int]image.Image),
-		itemImageCache: make(map[int]image.Image),
+		cache: cache,
 	}
 }
 
@@ -68,13 +64,16 @@ func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choi
 	draw.Draw(canvas, canvas.Bounds(), image.NewUniform(backgroundColor), image.Point{}, draw.Src)
 
 	for i, option := range options {
-		c.hMu.Lock()
-		roundedHero, found := c.heroImageCache[option.Hero.ID]
+		var roundedHero image.Image
+		heroKey := fmt.Sprintf("hero_rounded_img_%s", option.ShortName)
+
+		v, found := c.cache.Get(heroKey)
 		if !found {
 			roundedHero = roundedCorners(transform.Resize(option.Hero.Image, heroWidth, heroHeight, transform.Lanczos), heroRoundRadius)
-			c.heroImageCache[option.Hero.ID] = roundedHero
+			c.cache.Set(heroKey, roundedHero, -1)
+		} else {
+			roundedHero = v.(image.Image)
 		}
-		c.hMu.Unlock()
 
 		col, row := i%2, i/2
 		x := heroX0 + col*(heroWidth+heroGapX)
@@ -96,13 +95,16 @@ func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choi
 	}
 
 	for i, item := range items {
-		c.iMu.Lock()
-		roundedItem, found := c.itemImageCache[item.ID]
+		var roundedItem image.Image
+		itemKey := fmt.Sprintf("item_rounded_img_%s", item.ShortName)
+
+		v, found := c.cache.Get(itemKey)
 		if !found {
 			roundedItem = roundedCorners(transform.Resize(item.Image, itemWidth, itemHeight, transform.Lanczos), itemRoundRadius)
-			c.itemImageCache[item.ID] = roundedItem
+			c.cache.Set(itemKey, roundedItem, -1)
+		} else {
+			roundedItem = v.(image.Image)
 		}
-		c.iMu.Unlock()
 
 		col, row := i%3, i/3
 		x := itemX0 + col*(itemWidth+itemGapX)

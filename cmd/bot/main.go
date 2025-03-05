@@ -70,13 +70,12 @@ func main() {
 	heroImageFetcher := s3.NewHeroImageFetcher(minioClient, c)
 	itemImageFetcher := s3.NewItemImageFetcher(minioClient, c)
 
-
 	questionService := service.NewQuestionService(questionRepo, d2ptClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
 	userService := service.NewUserService(userRepo, c)
 
 	akionkaBot := NewBot(
 		bot,
-		NewDefaultCollager(),
+		NewDefaultCollager(c),
 		questionService,
 		userService,
 	)
