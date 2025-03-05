@@ -61,14 +61,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	c := cache.New(time.Minute, time.Minute*5)
+
 	questionRepo := postgres.NewQuestionRepository(pool)
 	heroRepo := postgres.NewHeroRepository(pool)
 	itemRepo := postgres.NewItemRepository(pool)
 	userRepo := postgres.NewUserRepository(pool)
-	heroImageFetcher := s3.NewHeroImageFetcher(minioClient)
-	itemImageFetcher := s3.NewItemImageFetcher(minioClient)
+	heroImageFetcher := s3.NewHeroImageFetcher(minioClient, c)
+	itemImageFetcher := s3.NewItemImageFetcher(minioClient, c)
 
-	c := cache.New(time.Minute, time.Minute*5)
 
 	questionService := service.NewQuestionService(questionRepo, d2ptClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
 	userService := service.NewUserService(userRepo, c)
