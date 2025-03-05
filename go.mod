@@ -10,6 +10,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/minio/minio-go/v7 v7.0.87
 	github.com/mymmrac/telego v1.0.0
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 )
 
 require (

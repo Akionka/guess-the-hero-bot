@@ -7,15 +7,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-
-	"github.com/akionka/akionkabot/s3"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
+	"time"
 
 	"github.com/akionka/akionkabot/d2pt"
 	"github.com/akionka/akionkabot/postgres"
+	"github.com/akionka/akionkabot/s3"
 	"github.com/akionka/akionkabot/service"
+	"github.com/patrickmn/go-cache"
+
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/mymmrac/telego"
 
 	_ "net/http/pprof"
@@ -27,7 +29,6 @@ func main() {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
-
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	if err != nil {
 		slog.Error(err.Error())
@@ -67,8 +68,10 @@ func main() {
 	heroImageFetcher := s3.NewHeroImageFetcher(minioClient)
 	itemImageFetcher := s3.NewItemImageFetcher(minioClient)
 
+	c := cache.New(time.Minute, time.Minute*5)
+
 	questionService := service.NewQuestionService(questionRepo, d2ptClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
-	userService := service.NewUserService(userRepo)
+	userService := service.NewUserService(userRepo, c)
 
 	akionkaBot := NewBot(
 		bot,
