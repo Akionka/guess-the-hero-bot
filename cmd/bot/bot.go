@@ -33,8 +33,7 @@ func (b *Bot) Start(ctx context.Context) {
 
 	bh.Use(userMiddleware(b.userService))
 
-	bh.HandleMessage(b.handleQuestionRequest, th.Or(th.CommandEqual("question"), th.CommandEqual("start")))
-
+	bh.Handle(b.handleQuestionRequest, th.Or(th.CommandEqual("question"), th.CommandEqual("start"), th.CallbackDataEqual("next_question")))
 	bh.HandleCallbackQuery(b.handleQuestionAnswer, th.CallbackDataPrefix("answer_"))
 
 	done := make(chan struct{}, 1)

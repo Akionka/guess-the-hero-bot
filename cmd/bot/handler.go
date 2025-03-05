@@ -41,7 +41,7 @@ func (qi *QuestionImage) Read(b []byte) (int, error) {
 	return qi.buf.Read(b)
 }
 
-func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Message) error {
+func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Update) error {
 	user, ok := getCtxUser(ctx)
 	if !ok {
 		return errors.New("no user in context")
@@ -52,7 +52,7 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Message) erro
 		return err
 	}
 
-	msg, err := b.prepareQuestionMessage(ctx, q, nil)
+	text, err := b.prepareQuestionText(ctx, q, nil)
 	if err != nil {
 		return err
 	}
@@ -70,12 +70,21 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Message) erro
 
 	keyboard := b.prepareQuestionKeyboard(ctx, q, nil)
 
+	var chatID telego.ChatID
+	switch {
+	case update.Message != nil:
+		chatID = update.Message.Chat.ChatID()
+	case update.CallbackQuery != nil:
+		chatID = tu.ID(update.CallbackQuery.From.ID)
+		b.AnswerCallbackQuery(ctx, tu.CallbackQuery(update.CallbackQuery.ID))
+	}
+
 	sentMsg, err := ctx.Bot().SendPhoto(ctx,
 		tu.Photo(
-			update.Chat.ChatID(),
+			chatID,
 			file,
 		).
-			WithCaption(msg).
+			WithCaption(text).
 			WithReplyMarkup(keyboard).
 			WithParseMode(telego.ModeHTML),
 	)
@@ -97,6 +106,7 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Message) erro
 	return nil
 
 }
+
 func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) error {
 	parts := strings.SplitN(query.Data, "_", 3)
 	if len(parts) != 3 {
@@ -138,7 +148,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		return err
 	}
 
-	msg, err := b.prepareQuestionMessage(ctx, q, userOption)
+	msg, err := b.prepareQuestionText(ctx, q, userOption)
 	if err != nil {
 		return err
 	}
@@ -162,7 +172,10 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		InlineMessageID: query.InlineMessageID,
 		Caption:         msg,
 		ParseMode:       telego.ModeHTML,
-		// ReplyMarkup:     tu.InlineKeyboard(tu.InlineKeyboardRow(tu.InlineKeyboardButton("Следующий").WithCallbackData("question_next"))),
+		ReplyMarkup: tu.InlineKeyboard(
+			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Следующий вопрос").WithCallbackData("next_question")),
+			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Поделиться").WithSwitchInlineQuery("question " + q.ID.String())),
+		),
 	})
 	if err != nil {
 		return err
@@ -183,7 +196,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 	return err
 }
 
-func (b *Bot) prepareQuestionMessage(ctx *th.Context, q *data.Question, userOption *data.UserOption) (string, error) {
+func (b *Bot) prepareQuestionText(ctx *th.Context, q *data.Question, userOption *data.UserOption) (string, error) {
 	var correctOption data.Option
 	for _, o := range q.Options {
 		if o.IsCorrect {
