@@ -18,62 +18,7 @@ const (
 
 func userMiddleware(service *service.UserService) func(*th.Context, telego.Update) error {
 	return func(ctx *th.Context, update telego.Update) error {
-		var fromUser *telego.User
-		if update.Message != nil {
-			fromUser = update.Message.From
-		}
-		if update.EditedMessage != nil {
-			fromUser = update.EditedMessage.From
-		}
-		if update.ChannelPost != nil {
-			fromUser = update.ChannelPost.From
-		}
-		if update.EditedChannelPost != nil {
-			fromUser = update.EditedChannelPost.From
-		}
-		if update.BusinessConnection != nil {
-			fromUser = &update.BusinessConnection.User
-		}
-		if update.BusinessMessage != nil {
-			fromUser = update.BusinessMessage.From
-		}
-		if update.EditedBusinessMessage != nil {
-			fromUser = update.EditedBusinessMessage.From
-		}
-		if update.MessageReaction != nil {
-			fromUser = update.MessageReaction.User
-		}
-		if update.InlineQuery != nil {
-			fromUser = &update.InlineQuery.From
-		}
-		if update.ChosenInlineResult != nil {
-			fromUser = &update.ChosenInlineResult.From
-		}
-		if update.CallbackQuery != nil {
-			fromUser = &update.CallbackQuery.From
-		}
-		if update.ShippingQuery != nil {
-			fromUser = &update.ShippingQuery.From
-		}
-		if update.PreCheckoutQuery != nil {
-			fromUser = &update.PreCheckoutQuery.From
-		}
-		if update.PurchasedPaidMedia != nil {
-			fromUser = &update.PurchasedPaidMedia.From
-		}
-		if update.PollAnswer != nil {
-			fromUser = update.PollAnswer.User
-		}
-		if update.MyChatMember != nil {
-			fromUser = &update.MyChatMember.From
-		}
-		if update.ChatMember != nil {
-			fromUser = &update.ChatMember.From
-		}
-		if update.ChatJoinRequest != nil {
-			fromUser = &update.ChatJoinRequest.From
-		}
-
+		fromUser := getFromUser(update)
 		if fromUser == nil {
 			return ctx.Next(update)
 		}
@@ -100,6 +45,51 @@ func userMiddleware(service *service.UserService) func(*th.Context, telego.Updat
 	}
 }
 
+func getFromUser(update telego.Update) *telego.User {
+	switch {
+	case update.Message != nil:
+		return update.Message.From
+	case update.EditedMessage != nil:
+		return update.EditedMessage.From
+	case update.ChannelPost != nil:
+		return update.ChannelPost.From
+	case update.EditedChannelPost != nil:
+		return update.EditedChannelPost.From
+	case update.BusinessConnection != nil:
+		return &update.BusinessConnection.User
+	case update.BusinessMessage != nil:
+		return update.BusinessMessage.From
+	case update.EditedBusinessMessage != nil:
+		return update.EditedBusinessMessage.From
+	case update.MessageReaction != nil:
+		return update.MessageReaction.User
+	case update.InlineQuery != nil:
+		return &update.InlineQuery.From
+	case update.ChosenInlineResult != nil:
+		return &update.ChosenInlineResult.From
+	case update.CallbackQuery != nil:
+		return &update.CallbackQuery.From
+	case update.ShippingQuery != nil:
+		return &update.ShippingQuery.From
+	case update.PreCheckoutQuery != nil:
+		return &update.PreCheckoutQuery.From
+	case update.PurchasedPaidMedia != nil:
+		return &update.PurchasedPaidMedia.From
+	case update.PollAnswer != nil:
+		return update.PollAnswer.User
+	case update.MyChatMember != nil:
+		return &update.MyChatMember.From
+	case update.ChatMember != nil:
+		return &update.ChatMember.From
+	case update.ChatJoinRequest != nil:
+		return &update.ChatJoinRequest.From
+	default:
+		return nil
+	}
+}
+
+// getCtxUser retrieves the user from the context if it exists.
+// It returns the user and a boolean indicating whether the user was found in the context.
 func getCtxUser(ctx context.Context) (*data.User, bool) {
 	user, ok := ctx.Value(UserKey).(*data.User)
 	return user, ok
