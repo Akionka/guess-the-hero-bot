@@ -76,7 +76,7 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Update) error
 				fileID = photo.FileID
 			}
 		}
-		return b.questionService.UpdateQuestionImage(ctx, question, fileID)
+		return b.questionService.UpdateQuestionImage(ctx, question.ID, fileID)
 	}
 	return nil
 
@@ -109,21 +109,19 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 	}
 
 	var (
-		userOption    *data.UserOption
+		userOption    data.Option
 		correctOption data.Option
 	)
 	for _, o := range question.Options {
 		if o.Hero.ID == answer {
-			userOption = &data.UserOption{
-				Option: o,
-			}
+			userOption = o
 		}
 		if o.IsCorrect {
 			correctOption = o
 		}
 	}
 
-	if err = b.questionService.AnswerQuestion(ctx, user, question, userOption); err != nil {
+	if _, err = b.questionService.AnswerQuestion(ctx, user, question, userOption); err != nil {
 		if errors.Is(err, data.ErrAlreadyExists) {
 			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("❌ Уже ответил на этот вопрос").WithShowAlert())
 		}
@@ -140,12 +138,12 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(fmt.Sprintf("🥀 Неправильно.\nНа самом деле это %s.", correctOption.DisplayName)).WithShowAlert())
 	}
 
-	msg, err := b.questionText(ctx, question, userOption)
+	msg, err := b.questionText(ctx, question, &userOption)
 	if err != nil {
 		return err
 	}
 
-	file, err := b.optionImageFile(ctx, question, userOption)
+	file, err := b.optionImageFile(ctx, question, &userOption)
 	if err != nil {
 		return err
 	}
@@ -186,7 +184,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 				fileID = photo.FileID
 			}
 		}
-		return b.questionService.UpdateOptionImage(ctx, question, &userOption.Option, fileID)
+		return b.questionService.UpdateOptionImage(ctx, question.ID, userOption, fileID)
 	}
 
 	return err
@@ -320,7 +318,7 @@ func (b *Bot) handleStats(ctx *th.Context, query telego.CallbackQuery) error {
 	return nil
 }
 
-func (b *Bot) questionText(ctx *th.Context, question *data.Question, userOption *data.UserOption) (string, error) {
+func (b *Bot) questionText(ctx *th.Context, question *data.Question, userOption *data.Option) (string, error) {
 	var correctOption data.Option
 	for _, o := range question.Options {
 		if o.IsCorrect {
@@ -362,7 +360,7 @@ func (b *Bot) questionImageFile(_ *th.Context, question *data.Question) (telego.
 	return imageFile, nil
 }
 
-func (b *Bot) optionImageFile(_ *th.Context, question *data.Question, userOption *data.UserOption) (telego.InputFile, error) {
+func (b *Bot) optionImageFile(_ *th.Context, question *data.Question, userOption *data.Option) (telego.InputFile, error) {
 	var imageFile telego.InputFile
 
 	if len(userOption.TelegramFileID) > 0 {

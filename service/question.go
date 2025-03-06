@@ -73,18 +73,21 @@ func (s *QuestionService) GetUserAnswer(ctx context.Context, id uuid.UUID, userI
 	return s.repo.GetUserAnswer(ctx, id, userID)
 }
 
-func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, userOption *data.UserOption) error {
-	userOption.AnsweredAt = time.Now()
-	userOption.ID = uuid.Must(uuid.NewV7())
-	return s.repo.AnswerQuestion(ctx, user, question, userOption)
+func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, option data.Option) (data.UserOption, error) {
+	answer := data.UserOption{
+		ID:         uuid.Must(uuid.NewV7()),
+		Option:     option,
+		AnsweredAt: time.Now(),
+	}
+	return s.repo.AnswerQuestion(ctx, user.ID, question, answer)
 }
 
-func (s *QuestionService) UpdateQuestionImage(ctx context.Context, question *data.Question, fileID string) error {
-	return s.repo.UpdateQuestionImage(ctx, question, fileID)
+func (s *QuestionService) UpdateQuestionImage(ctx context.Context, id uuid.UUID, fileID string) error {
+	return s.repo.UpdateQuestionImage(ctx, id, fileID)
 }
 
-func (s *QuestionService) UpdateOptionImage(ctx context.Context, question *data.Question, option *data.Option, fileID string) error {
-	return s.repo.UpdateOptionImage(ctx, question, option, fileID)
+func (s *QuestionService) UpdateOptionImage(ctx context.Context, id uuid.UUID, option data.Option, fileID string) error {
+	return s.repo.UpdateOptionImage(ctx, id, option, fileID)
 }
 
 func (s *QuestionService) fetchQuestionImages(ctx context.Context, question *data.Question) (*data.Question, error) {

@@ -12,7 +12,7 @@ import (
 )
 
 type Collager interface {
-	Collage(options []data.Option, items []data.Item, choice *data.UserOption) (image.Image, error)
+	Collage(options []data.Option, items []data.Item, choice *data.Option) (image.Image, error)
 }
 
 type DefaultCollager struct {
@@ -25,7 +25,7 @@ func NewDefaultCollager(cache *cache.Cache) *DefaultCollager {
 	}
 }
 
-func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choice *data.UserOption) (image.Image, error) {
+func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choice *data.Option) (image.Image, error) {
 	const (
 		canvasWidth     int     = 900
 		canvasHeight    int     = 900

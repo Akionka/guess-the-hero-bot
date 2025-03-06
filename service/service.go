@@ -29,12 +29,12 @@ var _ ItemRepository = (*postgres.ItemRepository)(nil)
 
 type QuestionRepository interface {
 	GetQuestion(ctx context.Context, id uuid.UUID) (*data.Question, error)
-	GetQuestionAvailableForUser(ctx context.Context, id uuid.UUID, isWon bool) (*data.Question, error)
+	GetQuestionAvailableForUser(ctx context.Context, userID uuid.UUID, isWon bool) (*data.Question, error)
 	GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserOption, error)
 	SaveQuestion(ctx context.Context, question *data.Question) (*data.Question, error)
-	AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, answer *data.UserOption) error
-	UpdateQuestionImage(ctx context.Context, question *data.Question, fileID string) error
-	UpdateOptionImage(ctx context.Context, question *data.Question, userOption *data.Option, fileID string) error
+	AnswerQuestion(ctx context.Context, userID uuid.UUID, question *data.Question, answer data.UserOption) (data.UserOption, error)
+	UpdateQuestionImage(ctx context.Context, id uuid.UUID, fileID string) error
+	UpdateOptionImage(ctx context.Context, id uuid.UUID, option data.Option, fileID string) error
 }
 
 var _ QuestionRepository = (*postgres.QuestionRepository)(nil)
