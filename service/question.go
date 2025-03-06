@@ -40,7 +40,7 @@ func (s *QuestionService) GetQuestion(ctx context.Context, id uuid.UUID) (*data.
 }
 
 func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UUID, isWon bool) (*data.Question, error) {
-	q, err := s.repo.GetQuestionAvailableForUser(ctx, userID)
+	q, err := s.repo.GetQuestionAvailableForUser(ctx, userID, isWon)
 	if err == nil {
 		return s.fetchQuestionImages(ctx, q)
 	}
@@ -52,6 +52,8 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 		}
 
 		q = s.convertQuestionResponse(qr)
+		q.ID = uuid.Must(uuid.NewV7())
+		q.CreatedAt = time.Now()
 
 		q, err = s.repo.SaveQuestion(ctx, q)
 		if err != nil {
@@ -119,17 +121,16 @@ func (s *QuestionService) convertQuestionResponse(qr *d2pt.Question) *data.Quest
 	})
 
 	return &data.Question{
-		ID:          uuid.Must(uuid.NewV7()),
-		MatchID:     qr.MatchID,
-		PlayerID:    qr.AccountID,
-		PlayerName:  qr.Name,
-		PlayerIsPro: bool(qr.IsPro),
-		PlayerPos:   positionFromQuestionResponse(qr.Pos),
-		PlayerMMR:   qr.MMR,
-		IsWon:       bool(qr.IsWon),
-		CreatedAt:   time.Now(),
-		Items:       items,
-		Options:     options,
+		MatchID:        qr.MatchID,
+		MatchStartedAt: time.Unix(qr.ActivateTime, 0),
+		PlayerID:       qr.AccountID,
+		PlayerName:     qr.Name,
+		PlayerIsPro:    bool(qr.IsPro),
+		PlayerPos:      positionFromQuestionResponse(qr.Pos),
+		PlayerMMR:      qr.MMR,
+		IsWon:          bool(qr.IsWon),
+		Items:          items,
+		Options:        options,
 	}
 }
 

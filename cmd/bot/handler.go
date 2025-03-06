@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image/jpeg"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 
@@ -47,7 +48,7 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Update) error
 		return errors.New("no user in context")
 	}
 
-	q, err := b.questionService.GetQuestionForUser(ctx, user.ID, true)
+	q, err := b.questionService.GetQuestionForUser(ctx, user.ID, rand.Uint()%2 == 0)
 	if err != nil {
 		return err
 	}

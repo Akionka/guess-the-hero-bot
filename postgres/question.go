@@ -46,7 +46,7 @@ func (r *QuestionRepository) GetQuestion(ctx context.Context, id uuid.UUID) (*da
 
 func (r *QuestionRepository) getQuestionTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*data.Question, error) {
 	const sql = `
-	SELECT q.question_id, q.match_id, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at, q.telegram_file_id
+	SELECT q.question_id, q.match_id, q.match_started_at, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at, q.telegram_file_id
 	FROM questions q
 	WHERE q.question_id = $1
 	LIMIT 1`
@@ -59,7 +59,7 @@ func (r *QuestionRepository) getQuestionTx(ctx context.Context, tx pgx.Tx, id uu
 	return pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[data.Question])
 }
 
-func (r *QuestionRepository) GetQuestionAvailableForUser(ctx context.Context, id uuid.UUID) (*data.Question, error) {
+func (r *QuestionRepository) GetQuestionAvailableForUser(ctx context.Context, id uuid.UUID, isWon bool) (*data.Question, error) {
 	var question *data.Question
 
 	tx, err := r.db.Begin(ctx)
@@ -68,7 +68,7 @@ func (r *QuestionRepository) GetQuestionAvailableForUser(ctx context.Context, id
 	}
 
 	if err = transaction(ctx, tx, "GetQuestionAvailableForUser", func() error {
-		question, err = r.getQuestionAvailableForUserTx(ctx, tx, id)
+		question, err = r.getQuestionAvailableForUserTx(ctx, tx, id, isWon)
 		if err != nil {
 			return err
 		}
@@ -84,16 +84,16 @@ func (r *QuestionRepository) GetQuestionAvailableForUser(ctx context.Context, id
 	return question, nil
 }
 
-func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*data.Question, error) {
+func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, isWon bool) (*data.Question, error) {
 	const sql = `
-	SELECT q.question_id, q.match_id, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at, q.telegram_file_id
+	SELECT q.question_id, q.match_id, q.match_started_at, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at, q.telegram_file_id
 	FROM questions q
 	LEFT JOIN user_questions uq ON q.question_id = uq.question_id AND uq.user_id = $1
-	WHERE uq.question_id IS NULL
+	WHERE q.is_won = $2 AND uq.question_id IS NULL
 	ORDER BY q.created_at DESC
 	LIMIT 1;`
 
-	rows, err := tx.Query(ctx, sql, userID)
+	rows, err := tx.Query(ctx, sql, userID, isWon)
 	if err != nil {
 		return nil, err
 	}
@@ -166,14 +166,14 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 
 func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, q *data.Question) (uuid.UUID, error) {
 	const sql = `
-	INSERT INTO questions (question_id, match_id, player_id, player_name, player_is_pro, player_pos, player_mmr, is_won, created_at, telegram_file_id) VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	INSERT INTO questions (question_id, match_id, match_started_at, player_id, player_name, player_is_pro, player_pos, player_mmr, is_won, created_at, telegram_file_id) VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	RETURNING question_id`
 
 	qID := uuid.Nil
 
 	rows, err := tx.Query(ctx, sql,
-		q.ID, q.MatchID, q.PlayerID, q.PlayerName, q.PlayerIsPro, q.PlayerPos, q.PlayerMMR, q.IsWon, q.CreatedAt, q.TelegramFileID,
+		q.ID, q.MatchID, q.MatchStartedAt, q.PlayerID, q.PlayerName, q.PlayerIsPro, q.PlayerPos, q.PlayerMMR, q.IsWon, q.CreatedAt, q.TelegramFileID,
 	)
 	if err != nil {
 		return qID, err

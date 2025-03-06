@@ -7,8 +7,10 @@ import (
 )
 
 type Question struct {
-	ID      uuid.UUID `db:"question_id"`
-	MatchID int64     `db:"match_id"`
+	ID uuid.UUID `db:"question_id"`
+
+	MatchID        int64     `db:"match_id"`
+	MatchStartedAt time.Time `db:"match_started_at"`
 
 	PlayerID    int64    `db:"player_id"`
 	PlayerName  string   `db:"player_name"`
