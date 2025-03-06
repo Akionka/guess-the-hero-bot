@@ -12,6 +12,8 @@ import (
 
 func transaction(ctx context.Context, tx pgx.Tx, label string, f func() error) error {
 	if err := f(); err != nil {
+		_ = tx.Rollback(ctx)
+
 		if errors.Is(err, pgx.ErrNoRows) {
 			return data.ErrNotFound
 		}
@@ -20,8 +22,6 @@ func transaction(ctx context.Context, tx pgx.Tx, label string, f func() error) e
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return data.ErrAlreadyExists
 		}
-
-		_ = tx.Rollback(ctx)
 
 		return fmt.Errorf("failed to perform transaction %s: %w", label, err)
 	}
