@@ -227,6 +227,45 @@ func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, us
 	return nil
 }
 
+func (r *QuestionRepository) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserOption, error) {
+	var answer data.UserOption
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return answer, err
+	}
+
+	if err = transaction(ctx, tx, "GetUserAnswer", func() error {
+		answer, err = r.getUserAnswerTx(ctx, tx, id, userID)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return answer, err
+	}
+
+	return answer, nil
+}
+
+func (r *QuestionRepository) getUserAnswerTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, userID uuid.UUID) (data.UserOption, error) {
+	const sql = `
+	SELECT uq.user_question_id, uq.answered_at, qo.is_correct, qo.telegram_file_id, h.hero_id, h.display_name, h.short_name
+	FROM user_questions uq
+	INNER JOIN public.question_options qo on uq.hero_id = qo.hero_id AND uq.question_id = qo.question_id
+	INNER JOIN public.heroes h on uq.hero_id = h.hero_id
+	WHERE uq.question_id = $1 AND uq.user_id = $2`
+
+	var answer data.UserOption
+
+	rows, err := tx.Query(ctx, sql, id, userID)
+	if err != nil {
+		return answer, err
+	}
+
+	return pgx.CollectOneRow(rows, pgx.RowToStructByName[data.UserOption])
+}
+
 func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, question *data.Question, fileID string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

@@ -69,6 +69,10 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 	return nil, data.ErrAlreadyExists
 }
 
+func (s *QuestionService) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserOption, error) {
+	return s.repo.GetUserAnswer(ctx, id, userID)
+}
+
 func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, userOption *data.UserOption) error {
 	userOption.AnsweredAt = time.Now()
 	userOption.ID = uuid.Must(uuid.NewV7())
