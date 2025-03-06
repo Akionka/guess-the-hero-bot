@@ -48,28 +48,10 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Update) error
 		return errors.New("no user in context")
 	}
 
-	q, err := b.questionService.GetQuestionForUser(ctx, user.ID, rand.Uint()%2 == 0)
+	question, err := b.questionService.GetQuestionForUser(ctx, user.ID, rand.Uint()%2 == 0)
 	if err != nil {
 		return err
 	}
-
-	text, err := b.prepareQuestionText(ctx, q, nil)
-	if err != nil {
-		return err
-	}
-
-	var file telego.InputFile
-
-	if len(q.TelegramFileID) > 0 {
-		file = tu.FileFromID(q.TelegramFileID)
-	} else {
-		file, err = b.prepareQuestionImageFile(ctx, q, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	keyboard := b.prepareQuestionKeyboard(ctx, q, nil)
 
 	var chatID telego.ChatID
 	switch {
@@ -80,20 +62,12 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Update) error
 		b.AnswerCallbackQuery(ctx, tu.CallbackQuery(update.CallbackQuery.ID))
 	}
 
-	sentMsg, err := ctx.Bot().SendPhoto(ctx,
-		tu.Photo(
-			chatID,
-			file,
-		).
-			WithCaption(text).
-			WithReplyMarkup(keyboard).
-			WithParseMode(telego.ModeHTML),
-	)
+	sentMsg, err := b.sendQuestion(ctx, question, chatID)
 	if err != nil {
 		return err
 	}
 
-	if len(q.TelegramFileID) == 0 {
+	if len(question.TelegramFileID) == 0 {
 		fileID := ""
 		maxWidth := -1
 		for _, photo := range sentMsg.Photo {
@@ -102,7 +76,7 @@ func (b *Bot) handleQuestionRequest(ctx *th.Context, update telego.Update) error
 				fileID = photo.FileID
 			}
 		}
-		return b.questionService.UpdateQuestionImage(ctx, q, fileID)
+		return b.questionService.UpdateQuestionImage(ctx, question, fileID)
 	}
 	return nil
 
@@ -129,13 +103,13 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		return errors.New("no user in context")
 	}
 
-	q, err := b.questionService.GetQuestion(ctx, id)
+	question, err := b.questionService.GetQuestion(ctx, id)
 	if err != nil {
 		return err
 	}
 
 	var userOption *data.UserOption
-	for _, o := range q.Options {
+	for _, o := range question.Options {
 		if o.Hero.ID == answer {
 			userOption = &data.UserOption{
 				Option: o,
@@ -144,21 +118,29 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		}
 	}
 
-	err = b.questionService.AnswerQuestion(ctx, user, q, userOption)
-	if err != nil {
+	if err = b.questionService.AnswerQuestion(ctx, user, question, userOption); err != nil {
 		if errors.Is(err, data.ErrAlreadyExists) {
-			ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("Один раз ответил - достаточно.").WithShowAlert())
-			return nil
+			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("❌ Уже ответил на этот вопрос").WithShowAlert())
 		}
 		return err
 	}
 
-	msg, err := b.prepareQuestionText(ctx, q, userOption)
+	isInline := query.InlineMessageID != ""
+	isPrivate := query.Message != nil && query.Message.GetChat().Type == telego.ChatTypePrivate
+
+	if isInline || !isPrivate {
+		if userOption.IsCorrect {
+			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("🎉 Правильно").WithShowAlert())
+		}
+		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("Неправильно 🥀").WithShowAlert())
+	}
+
+	msg, err := b.prepareQuestionText(ctx, question, userOption)
 	if err != nil {
 		return err
 	}
 
-	file, err := b.prepareOptionImageFile(ctx, q, userOption)
+	file, err := b.prepareOptionImageFile(ctx, question, userOption)
 	if err != nil {
 		return err
 	}
@@ -168,9 +150,9 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		chatID    telego.ChatID
 	)
 
-	if query.Message != nil {
+	if !isInline {
 		messageID = query.Message.GetMessageID()
-		chatID = tu.ID(query.From.ID)
+		chatID = tu.ID(query.Message.GetChat().ID)
 	}
 
 	editedMsg, err := ctx.Bot().EditMessageMedia(ctx, &telego.EditMessageMediaParams{
@@ -191,7 +173,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		ParseMode:       telego.ModeHTML,
 		ReplyMarkup: tu.InlineKeyboard(
 			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Следующий вопрос").WithCallbackData("next_question")),
-			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Поделиться").WithSwitchInlineQuery("question "+q.ID.String())),
+			tu.InlineKeyboardRow(b.shareQuestionButton(ctx, question)),
 		),
 	})
 	if err != nil {
@@ -207,10 +189,38 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 				fileID = photo.FileID
 			}
 		}
-		return b.questionService.UpdateOptionImage(ctx, q, &userOption.Option, fileID)
+		return b.questionService.UpdateOptionImage(ctx, question, &userOption.Option, fileID)
 	}
 
 	return err
+}
+
+func (b *Bot) sendQuestion(ctx *th.Context, question *data.Question, chatID telego.ChatID) (*telego.Message, error) {
+	text, err := b.prepareQuestionText(ctx, question, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var file telego.InputFile
+
+	if len(question.TelegramFileID) > 0 {
+		file = tu.FileFromID(question.TelegramFileID)
+	} else {
+		file, err = b.prepareQuestionImageFile(ctx, question, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	keyboard := b.prepareQuestionKeyboard(ctx, question)
+
+	return ctx.Bot().SendPhoto(
+		ctx,
+		tu.Photo(chatID, file).
+			WithCaption(text).
+			WithReplyMarkup(keyboard).
+			WithParseMode(telego.ModeHTML),
+	)
 }
 
 func (b *Bot) handleQuestionShare(ctx *th.Context, query telego.InlineQuery) error {
@@ -219,28 +229,28 @@ func (b *Bot) handleQuestionShare(ctx *th.Context, query telego.InlineQuery) err
 		return nil
 	}
 
-	q, err := b.questionService.GetQuestion(ctx, qID)
+	question, err := b.questionService.GetQuestion(ctx, qID)
 	if err != nil {
 		return err
 	}
 
-	text, err := b.prepareQuestionText(ctx, q, nil)
+	text, err := b.prepareQuestionText(ctx, question, nil)
 	if err != nil {
 		return err
 	}
 
 	var file telego.InputFile
 
-	if len(q.TelegramFileID) > 0 {
-		file = tu.FileFromID(q.TelegramFileID)
+	if len(question.TelegramFileID) > 0 {
+		file = tu.FileFromID(question.TelegramFileID)
 	} else {
-		file, err = b.prepareQuestionImageFile(ctx, q, nil)
+		file, err = b.prepareQuestionImageFile(ctx, question, nil)
 		if err != nil {
 			return err
 		}
 	}
 
-	keyboard := b.prepareQuestionKeyboard(ctx, q, nil)
+	keyboard := b.prepareQuestionKeyboard(ctx, question)
 
 	err = b.AnswerInlineQuery(
 		ctx,
@@ -252,7 +262,7 @@ func (b *Bot) handleQuestionShare(ctx *th.Context, query telego.InlineQuery) err
 			).
 				WithCaption(text).
 				WithParseMode(telego.ModeHTML).
-				WithReplyMarkup(keyboard).WithTitle("Поделитьcя вопросом "+q.ID.String()),
+				WithReplyMarkup(keyboard).WithTitle("Поделитьcя вопросом "+question.ID.String()),
 		),
 	)
 
@@ -262,9 +272,9 @@ func (b *Bot) handleQuestionShare(ctx *th.Context, query telego.InlineQuery) err
 	return nil
 }
 
-func (b *Bot) prepareQuestionText(ctx *th.Context, q *data.Question, userOption *data.UserOption) (string, error) {
+func (b *Bot) prepareQuestionText(ctx *th.Context, question *data.Question, userOption *data.UserOption) (string, error) {
 	var correctOption data.Option
-	for _, o := range q.Options {
+	for _, o := range question.Options {
 		if o.IsCorrect {
 			correctOption = o
 			break
@@ -272,59 +282,64 @@ func (b *Bot) prepareQuestionText(ctx *th.Context, q *data.Question, userOption 
 	}
 
 	var buf bytes.Buffer
-	questionTempl(q.PlayerMMR, q.Items).Render(ctx, &buf)
+	questionTempl(question.PlayerMMR, question.Items).Render(ctx, &buf)
 	buf.WriteRune('\n')
 	if userOption != nil {
-		answerTempl(userOption.Hero, correctOption.Hero, q.PlayerPos, q.IsWon).Render(ctx, &buf)
+		answerTempl(userOption.Hero, correctOption.Hero, question.PlayerPos, question.IsWon).Render(ctx, &buf)
 		buf.WriteRune('\n')
 
 		proName := ""
-		if q.PlayerIsPro {
-			proName = q.PlayerName
+		if question.PlayerIsPro {
+			proName = question.PlayerName
 		}
-		matchCredentials(correctOption.Hero.DisplayName, q.MatchID, q.PlayerID, proName).Render(ctx, &buf)
+		matchCredentials(correctOption.Hero.DisplayName, question.MatchID, question.PlayerID, proName).Render(ctx, &buf)
 	}
 
 	return buf.String(), nil
 }
 
-func (b *Bot) prepareQuestionImageFile(_ *th.Context, q *data.Question, userOption *data.UserOption) (telego.InputFile, error) {
+func (b *Bot) prepareQuestionImageFile(_ *th.Context, question *data.Question, userOption *data.UserOption) (telego.InputFile, error) {
 	var imageFile telego.InputFile
 
-	if len(q.TelegramFileID) > 0 {
-		imageFile = tu.FileFromID(q.TelegramFileID)
+	if len(question.TelegramFileID) > 0 {
+		imageFile = tu.FileFromID(question.TelegramFileID)
 	} else {
-		collage, err := b.collager.Collage(q.Options, q.Items, userOption)
+		collage, err := b.collager.Collage(question.Options, question.Items, userOption)
 		if err != nil {
 			return imageFile, err
 		}
-		imageFile = tu.File(&QuestionImage{q: q, Image: data.Image{Image: collage}})
+		imageFile = tu.File(&QuestionImage{q: question, Image: data.Image{Image: collage}})
 	}
 
 	return imageFile, nil
 }
 
-func (b *Bot) prepareOptionImageFile(_ *th.Context, q *data.Question, userOption *data.UserOption) (telego.InputFile, error) {
+func (b *Bot) prepareOptionImageFile(_ *th.Context, question *data.Question, userOption *data.UserOption) (telego.InputFile, error) {
 	var imageFile telego.InputFile
 
 	if len(userOption.TelegramFileID) > 0 {
 		imageFile = tu.FileFromID(userOption.TelegramFileID)
 	} else {
-		collage, err := b.collager.Collage(q.Options, q.Items, userOption)
+		collage, err := b.collager.Collage(question.Options, question.Items, userOption)
 		if err != nil {
 			return imageFile, err
 		}
-		imageFile = tu.File(&QuestionImage{q: q, Image: data.Image{Image: collage}})
+		imageFile = tu.File(&QuestionImage{q: question, Image: data.Image{Image: collage}})
 	}
 
 	return imageFile, nil
 }
 
-func (b *Bot) prepareQuestionKeyboard(_ *th.Context, q *data.Question, userOption *data.Option) *telego.InlineKeyboardMarkup {
-	btns := make([]telego.InlineKeyboardButton, len(q.Options))
-	for i, o := range q.Options {
-		cbData := fmt.Sprintf("answer_%s_%d", q.ID, o.Hero.ID)
-		btns[i] = tu.InlineKeyboardButton(o.Hero.DisplayName).WithCallbackData(cbData)
+func (b *Bot) prepareQuestionKeyboard(ctx *th.Context, question *data.Question) *telego.InlineKeyboardMarkup {
+	btns := make([]telego.InlineKeyboardButton, 0, len(question.Options)+1)
+	for _, o := range question.Options {
+		cbData := fmt.Sprintf("answer_%s_%d", question.ID, o.Hero.ID)
+		btns = append(btns, tu.InlineKeyboardButton(o.Hero.DisplayName).WithCallbackData(cbData))
 	}
+	btns = append(btns, b.shareQuestionButton(ctx, question))
 	return tu.InlineKeyboard(tu.InlineKeyboardCols(2, btns...)...)
+}
+
+func (b *Bot) shareQuestionButton(_ *th.Context, question *data.Question) telego.InlineKeyboardButton {
+	return tu.InlineKeyboardButton("Поделиться вопросом").WithSwitchInlineQuery("question " + question.ID.String())
 }

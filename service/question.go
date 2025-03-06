@@ -31,18 +31,18 @@ func NewQuestionService(repo QuestionRepository, questionFetcher QuestionFetcher
 }
 
 func (s *QuestionService) GetQuestion(ctx context.Context, id uuid.UUID) (*data.Question, error) {
-	q, err := s.repo.GetQuestion(ctx, id)
+	question, err := s.repo.GetQuestion(ctx, id)
 	if err != nil {
-		return q, nil
+		return question, nil
 	}
 
-	return s.fetchQuestionImages(ctx, q)
+	return s.fetchQuestionImages(ctx, question)
 }
 
 func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UUID, isWon bool) (*data.Question, error) {
-	q, err := s.repo.GetQuestionAvailableForUser(ctx, userID, isWon)
+	question, err := s.repo.GetQuestionAvailableForUser(ctx, userID, isWon)
 	if err == nil {
-		return s.fetchQuestionImages(ctx, q)
+		return s.fetchQuestionImages(ctx, question)
 	}
 
 	for range 4 {
@@ -51,11 +51,11 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 			return nil, err
 		}
 
-		q = s.convertQuestionResponse(qr)
-		q.ID = uuid.Must(uuid.NewV7())
-		q.CreatedAt = time.Now()
+		question = s.convertQuestionResponse(qr)
+		question.ID = uuid.Must(uuid.NewV7())
+		question.CreatedAt = time.Now()
 
-		q, err = s.repo.SaveQuestion(ctx, q)
+		question, err = s.repo.SaveQuestion(ctx, question)
 		if err != nil {
 			if errors.Is(err, data.ErrAlreadyExists) {
 				continue
@@ -63,7 +63,7 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 			return nil, err
 		}
 
-		return s.fetchQuestionImages(ctx, q)
+		return s.fetchQuestionImages(ctx, question)
 	}
 
 	return nil, data.ErrAlreadyExists
@@ -75,31 +75,31 @@ func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, q
 	return s.repo.AnswerQuestion(ctx, user, question, userOption)
 }
 
-func (s *QuestionService) UpdateQuestionImage(ctx context.Context, q *data.Question, fileID string) error {
-	return s.repo.UpdateQuestionImage(ctx, q, fileID)
+func (s *QuestionService) UpdateQuestionImage(ctx context.Context, question *data.Question, fileID string) error {
+	return s.repo.UpdateQuestionImage(ctx, question, fileID)
 }
 
-func (s *QuestionService) UpdateOptionImage(ctx context.Context, q *data.Question, o *data.Option, fileID string) error {
-	return s.repo.UpdateOptionImage(ctx, q, o, fileID)
+func (s *QuestionService) UpdateOptionImage(ctx context.Context, question *data.Question, option *data.Option, fileID string) error {
+	return s.repo.UpdateOptionImage(ctx, question, option, fileID)
 }
 
-func (s *QuestionService) fetchQuestionImages(ctx context.Context, q *data.Question) (*data.Question, error) {
-	for i, option := range q.Options {
+func (s *QuestionService) fetchQuestionImages(ctx context.Context, question *data.Question) (*data.Question, error) {
+	for i, option := range question.Options {
 		image, err := s.heroImageFetcher.FetchImage(ctx, option.Hero.ShortName)
 		if err != nil {
 			return nil, err
 		}
-		q.Options[i].Hero.Image = image
+		question.Options[i].Hero.Image = image
 	}
 
-	for i, item := range q.Items {
+	for i, item := range question.Items {
 		image, err := s.itemImageFetcher.FetchImage(ctx, item.ShortName)
 		if err != nil {
 			return nil, err
 		}
-		q.Items[i].Image = image
+		question.Items[i].Image = image
 	}
-	return q, nil
+	return question, nil
 }
 
 func (s *QuestionService) convertQuestionResponse(qr *d2pt.Question) *data.Question {

@@ -100,7 +100,7 @@ func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, 
 	return pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[data.Question])
 }
 
-func (r *QuestionRepository) enrichQuestionTx(ctx context.Context, tx pgx.Tx, q *data.Question) (*data.Question, error) {
+func (r *QuestionRepository) enrichQuestionTx(ctx context.Context, tx pgx.Tx, question *data.Question) (*data.Question, error) {
 	const heroSQL = `
 	SELECT qo.is_correct, h.hero_id, h.display_name, h.short_name, qo.telegram_file_id
 	FROM question_options qo
@@ -114,23 +114,23 @@ func (r *QuestionRepository) enrichQuestionTx(ctx context.Context, tx pgx.Tx, q 
 	INNER JOIN items i ON qi.item_id = i.item_id
 	WHERE qi.question_id = $1`
 
-	heroRows, err := tx.Query(ctx, heroSQL, q.ID)
+	heroRows, err := tx.Query(ctx, heroSQL, question.ID)
 	if err != nil {
-		return q, err
+		return question, err
 	}
 
-	q.Options, err = pgx.CollectRows(heroRows, pgx.RowToStructByName[data.Option])
+	question.Options, err = pgx.CollectRows(heroRows, pgx.RowToStructByName[data.Option])
 	if err != nil {
-		return q, err
+		return question, err
 	}
 
-	itemRows, err := tx.Query(ctx, itemSQL, q.ID)
+	itemRows, err := tx.Query(ctx, itemSQL, question.ID)
 	if err != nil {
-		return q, err
+		return question, err
 	}
 
-	q.Items, err = pgx.CollectRows(itemRows, pgx.RowToStructByName[data.Item])
-	return q, err
+	question.Items, err = pgx.CollectRows(itemRows, pgx.RowToStructByName[data.Item])
+	return question, err
 }
 
 func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question) (*data.Question, error) {
@@ -164,7 +164,7 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 	return question, nil
 }
 
-func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, q *data.Question) (uuid.UUID, error) {
+func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, question *data.Question) (uuid.UUID, error) {
 	const sql = `
 	INSERT INTO questions (question_id, match_id, match_started_at, player_id, player_name, player_is_pro, player_pos, player_mmr, is_won, created_at, telegram_file_id) VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -173,7 +173,7 @@ func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, q *d
 	qID := uuid.Nil
 
 	rows, err := tx.Query(ctx, sql,
-		q.ID, q.MatchID, q.MatchStartedAt, q.PlayerID, q.PlayerName, q.PlayerIsPro, q.PlayerPos, q.PlayerMMR, q.IsWon, q.CreatedAt, q.TelegramFileID,
+		question.ID, question.MatchID, question.MatchStartedAt, question.PlayerID, question.PlayerName, question.PlayerIsPro, question.PlayerPos, question.PlayerMMR, question.IsWon, question.CreatedAt, question.TelegramFileID,
 	)
 	if err != nil {
 		return qID, err
@@ -183,15 +183,15 @@ func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, q *d
 		return qID, err
 	}
 
-	_, err = tx.CopyFrom(ctx, pgx.Identifier{"question_items"}, []string{"question_id", "item_id"}, pgx.CopyFromSlice(len(q.Items), func(i int) ([]any, error) {
-		return []any{qID, q.Items[i].ID}, nil
+	_, err = tx.CopyFrom(ctx, pgx.Identifier{"question_items"}, []string{"question_id", "item_id"}, pgx.CopyFromSlice(len(question.Items), func(i int) ([]any, error) {
+		return []any{qID, question.Items[i].ID}, nil
 	}))
 	if err != nil {
 		return qID, err
 	}
 
-	_, err = tx.CopyFrom(ctx, pgx.Identifier{"question_options"}, []string{"question_id", "hero_id", "is_correct", "telegram_file_id"}, pgx.CopyFromSlice(len(q.Options), func(i int) ([]any, error) {
-		return []any{qID, q.Options[i].Hero.ID, q.Options[i].IsCorrect, q.Options[i].TelegramFileID}, nil
+	_, err = tx.CopyFrom(ctx, pgx.Identifier{"question_options"}, []string{"question_id", "hero_id", "is_correct", "telegram_file_id"}, pgx.CopyFromSlice(len(question.Options), func(i int) ([]any, error) {
+		return []any{qID, question.Options[i].Hero.ID, question.Options[i].IsCorrect, question.Options[i].TelegramFileID}, nil
 	}))
 	if err != nil {
 		return qID, err
@@ -200,14 +200,14 @@ func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, q *d
 	return qID, nil
 }
 
-func (r *QuestionRepository) AnswerQuestion(ctx context.Context, u *data.User, q *data.Question, answer *data.UserOption) error {
+func (r *QuestionRepository) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, answer *data.UserOption) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 
 	if err = transaction(ctx, tx, "AnswerQuestion", func() error {
-		return r.answerQuestionTx(ctx, tx, u, q, answer)
+		return r.answerQuestionTx(ctx, tx, user, question, answer)
 	}); err != nil {
 		return err
 	}
@@ -215,11 +215,11 @@ func (r *QuestionRepository) AnswerQuestion(ctx context.Context, u *data.User, q
 	return nil
 }
 
-func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, u *data.User, q *data.Question, answer *data.UserOption) error {
+func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, user *data.User, question *data.Question, answer *data.UserOption) error {
 	const sql = `INSERT INTO user_questions (user_question_id, user_id, question_id, hero_id, answered_at) VALUES
 	($1, $2, $3, $4, $5)`
 
-	_, err := tx.Exec(ctx, sql, answer.ID, u.ID, q.ID, answer.Hero.ID, answer.AnsweredAt)
+	_, err := tx.Exec(ctx, sql, answer.ID, user.ID, question.ID, answer.Hero.ID, answer.AnsweredAt)
 	if err != nil {
 		return err
 	}
@@ -227,14 +227,14 @@ func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, u 
 	return nil
 }
 
-func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, q *data.Question, fileID string) error {
+func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, question *data.Question, fileID string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 
 	if err = transaction(ctx, tx, "UpdateQuestionImage", func() error {
-		return r.updateQuestionImageTx(ctx, tx, q, fileID)
+		return r.updateQuestionImageTx(ctx, tx, question, fileID)
 	}); err != nil {
 		return err
 	}
@@ -242,10 +242,10 @@ func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, q *data.Qu
 	return nil
 }
 
-func (r *QuestionRepository) updateQuestionImageTx(ctx context.Context, tx pgx.Tx, q *data.Question, fileID string) error {
+func (r *QuestionRepository) updateQuestionImageTx(ctx context.Context, tx pgx.Tx, question *data.Question, fileID string) error {
 	const sql = `UPDATE questions SET telegram_file_id = $1 WHERE question_id = $2`
 
-	_, err := tx.Exec(ctx, sql, fileID, q.ID)
+	_, err := tx.Exec(ctx, sql, fileID, question.ID)
 	if err != nil {
 		return err
 	}
@@ -253,14 +253,14 @@ func (r *QuestionRepository) updateQuestionImageTx(ctx context.Context, tx pgx.T
 	return nil
 }
 
-func (r *QuestionRepository) UpdateOptionImage(ctx context.Context, q *data.Question, o *data.Option, fileID string) error {
+func (r *QuestionRepository) UpdateOptionImage(ctx context.Context, question *data.Question, option *data.Option, fileID string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 
 	if err = transaction(ctx, tx, "UpdateOptionImage", func() error {
-		return r.updateOptionImageTx(ctx, tx, q, o, fileID)
+		return r.updateOptionImageTx(ctx, tx, question, option, fileID)
 	}); err != nil {
 		return err
 	}
