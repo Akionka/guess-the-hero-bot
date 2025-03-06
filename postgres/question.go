@@ -314,3 +314,30 @@ func (r *QuestionRepository) updateOptionImageTx(ctx context.Context, tx pgx.Tx,
 
 	return nil
 }
+
+func (r *QuestionRepository) GetQuestionStats(ctx context.Context, questionID uuid.UUID) (map[int]int, error) {
+	const sql = `
+	SELECT qo.hero_id, COUNT(uq.user_id) as answer_count
+	FROM question_options qo
+	LEFT JOIN user_questions uq ON qo.question_id = uq.question_id AND qo.hero_id = uq.hero_id
+	WHERE qo.question_id = $1
+	GROUP BY qo.hero_id`
+
+	rows, err := r.db.Query(ctx, sql, questionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	stats := make(map[int]int)
+	for rows.Next() {
+		var heroID int
+		var count int
+		if err := rows.Scan(&heroID, &count); err != nil {
+			return nil, err
+		}
+		stats[heroID] = count
+	}
+
+	return stats, nil
+}

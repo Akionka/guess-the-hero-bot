@@ -314,8 +314,82 @@ func (b *Bot) handleStats(ctx *th.Context, query telego.CallbackQuery) error {
 	if !ok {
 		return errors.New("no user in context")
 	}
-	_ = user
-	return nil
+
+	id, err := uuid.Parse(strings.TrimPrefix(query.Data, "stats_"))
+	if err != nil {
+		return err
+	}
+
+	question, err := b.questionService.GetQuestion(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	stats, err := b.questionService.GetQuestionStats(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	var statsText strings.Builder
+	statsText.WriteString("📊 Статистика ответов\n\n")
+
+	totalAnswers := 0
+	for _, count := range stats {
+		totalAnswers += count
+	}
+
+	if totalAnswers == 0 {
+		statsText.WriteString("На этот вопрос ещё никто не ответил.")
+		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(statsText.String()).WithShowAlert())
+	}
+
+	userAnswer, err := b.questionService.GetUserAnswer(ctx, id, user.ID)
+	if err != nil {
+		if !errors.Is(err, data.ErrNotFound) {
+			return err
+		}
+	}
+
+	for _, opt := range question.Options {
+		count := stats[opt.Hero.ID]
+		percentage := float64(count) / float64(totalAnswers) * 100
+
+		indicator := ""
+		if opt.IsCorrect {
+			indicator = "✅ "
+		}
+		if userAnswer.Hero.ID == opt.Hero.ID {
+			indicator += "👤 "
+		}
+
+		progressBar := createProgressBar(percentage)
+
+		statsText.WriteString(fmt.Sprintf("%s%s: %d (%.1f%%)\n%s\n",
+			indicator, opt.Hero.DisplayName, count, percentage, progressBar))
+	}
+
+	statsText.WriteString(fmt.Sprintf("\nВсего ответов: %d", totalAnswers))
+
+	fmt.Printf("statsText.Len(): %v\n", statsText.Len())
+
+	return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(statsText.String()).WithShowAlert())
+}
+
+func createProgressBar(percentage float64) string {
+	const barWidth = 10
+	numFilled := min(int((percentage/100)*float64(barWidth)), barWidth)
+
+	bar := "["
+	for i := 0; i < barWidth; i++ {
+		if i < numFilled {
+			bar += "■"
+		} else {
+			bar += "□"
+		}
+	}
+	bar += "]"
+
+	return bar
 }
 
 func (b *Bot) questionText(ctx *th.Context, question *data.Question, userOption *data.Option) (string, error) {

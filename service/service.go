@@ -35,6 +35,7 @@ type QuestionRepository interface {
 	AnswerQuestion(ctx context.Context, userID uuid.UUID, question *data.Question, answer data.UserOption) (data.UserOption, error)
 	UpdateQuestionImage(ctx context.Context, id uuid.UUID, fileID string) error
 	UpdateOptionImage(ctx context.Context, id uuid.UUID, option data.Option, fileID string) error
+	GetQuestionStats(ctx context.Context, questionID uuid.UUID) (map[int]int, error)
 }
 
 var _ QuestionRepository = (*postgres.QuestionRepository)(nil)
