@@ -1,8 +1,6 @@
 module github.com/akionka/akionkabot
 
-go 1.23.4
-
-toolchain go1.24.0
+go 1.24
 
 require (
 	github.com/a-h/templ v0.3.833
@@ -23,17 +21,17 @@ require (
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/rs/xid v1.6.0 // indirect
-	golang.org/x/crypto v0.35.0 // indirect
-	golang.org/x/net v0.36.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/net v0.37.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 )
 
 require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/anthonynsimon/bild v0.14.0
-	github.com/bytedance/sonic v1.12.10 // indirect
-	github.com/bytedance/sonic/loader v0.2.3 // indirect
+	github.com/bytedance/sonic v1.13.1 // indirect
+	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/grbit/go-json v0.11.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
@@ -42,7 +40,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.59.0 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
-	golang.org/x/arch v0.14.0 // indirect
-	golang.org/x/image v0.24.0
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/arch v0.15.0 // indirect
+	golang.org/x/image v0.25.0
+	golang.org/x/sys v0.31.0 // indirect
 )
