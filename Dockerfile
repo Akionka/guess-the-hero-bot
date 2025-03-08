@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM golang:1.24 AS builder
+FROM golang:1.24.1 AS builder
 
 # Prebuild Go std
 RUN CGO_ENABLED=0 go install std
@@ -20,7 +20,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o bot ./cmd/bot
 
 # Stage 2: Run
-FROM alpine:latest AS production
+FROM alpine:3.21 AS production
 
 WORKDIR /root/
 
