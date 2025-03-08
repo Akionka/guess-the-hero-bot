@@ -69,12 +69,12 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 	return nil, data.ErrAlreadyExists
 }
 
-func (s *QuestionService) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserOption, error) {
+func (s *QuestionService) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserAnswer, error) {
 	return s.repo.GetUserAnswer(ctx, id, userID)
 }
 
-func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, option data.Option) (data.UserOption, error) {
-	answer := data.UserOption{
+func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, option data.Option) (data.UserAnswer, error) {
+	answer := data.UserAnswer{
 		ID:         uuid.Must(uuid.NewV7()),
 		Option:     option,
 		AnsweredAt: time.Now(),

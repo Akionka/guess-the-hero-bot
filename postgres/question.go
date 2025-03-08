@@ -88,8 +88,8 @@ func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, 
 	const sql = `
 	SELECT q.question_id, q.match_id, q.match_started_at, q.player_id, q.player_name, q.player_is_pro, q.player_pos, q.player_mmr, q.is_won, q.created_at, q.telegram_file_id
 	FROM questions q
-	LEFT JOIN user_questions uq ON q.question_id = uq.question_id AND uq.user_id = $1
-	WHERE q.is_won = $2 AND uq.question_id IS NULL
+	LEFT JOIN user_answers ua ON q.question_id = ua.question_id AND ua.user_id = $1
+	WHERE q.is_won = $2 AND ua.question_id IS NULL
 	ORDER BY q.created_at DESC
 	LIMIT 1;`
 
@@ -193,7 +193,7 @@ func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, ques
 	return questionID, nil
 }
 
-func (r *QuestionRepository) AnswerQuestion(ctx context.Context, userID uuid.UUID, question *data.Question, answer data.UserOption) (data.UserOption, error) {
+func (r *QuestionRepository) AnswerQuestion(ctx context.Context, userID uuid.UUID, question *data.Question, answer data.UserAnswer) (data.UserAnswer, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return answer, err
@@ -212,9 +212,9 @@ func (r *QuestionRepository) AnswerQuestion(ctx context.Context, userID uuid.UUI
 	return answer, nil
 }
 
-func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, question *data.Question, answer data.UserOption) (uuid.UUID, error) {
-	const sql = `INSERT INTO user_questions (user_question_id, user_id, question_id, hero_id, answered_at) VALUES
-	($1, $2, $3, $4, $5) RETURNING user_question_id`
+func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, question *data.Question, answer data.UserAnswer) (uuid.UUID, error) {
+	const sql = `INSERT INTO user_answers (user_answer_id, user_id, question_id, hero_id, answered_at) VALUES
+	($1, $2, $3, $4, $5) RETURNING user_answer_id`
 
 	var userQuestionID uuid.UUID
 	if err := tx.QueryRow(ctx, sql, answer.ID, userID, question.ID, answer.Hero.ID, answer.AnsweredAt).Scan(&userQuestionID); err != nil {
@@ -224,8 +224,8 @@ func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, us
 	return userQuestionID, nil
 }
 
-func (r *QuestionRepository) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserOption, error) {
-	var answer data.UserOption
+func (r *QuestionRepository) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserAnswer, error) {
+	var answer data.UserAnswer
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -245,22 +245,22 @@ func (r *QuestionRepository) GetUserAnswer(ctx context.Context, id uuid.UUID, us
 	return answer, nil
 }
 
-func (r *QuestionRepository) getUserAnswerTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, userID uuid.UUID) (data.UserOption, error) {
+func (r *QuestionRepository) getUserAnswerTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, userID uuid.UUID) (data.UserAnswer, error) {
 	const sql = `
-	SELECT uq.user_question_id, uq.answered_at, qo.is_correct, qo.telegram_file_id, h.hero_id, h.display_name, h.short_name
-	FROM user_questions uq
-	INNER JOIN public.question_options qo on uq.hero_id = qo.hero_id AND uq.question_id = qo.question_id
-	INNER JOIN public.heroes h on uq.hero_id = h.hero_id
-	WHERE uq.question_id = $1 AND uq.user_id = $2`
+	SELECT ua.user_answer_id, ua.answered_at, qo.is_correct, qo.telegram_file_id, h.hero_id, h.display_name, h.short_name
+	FROM user_answers ua
+	INNER JOIN public.question_options qo on ua.hero_id = qo.hero_id AND ua.question_id = qo.question_id
+	INNER JOIN public.heroes h on ua.hero_id = h.hero_id
+	WHERE ua.question_id = $1 AND ua.user_id = $2`
 
-	var answer data.UserOption
+	var answer data.UserAnswer
 
 	rows, err := tx.Query(ctx, sql, id, userID)
 	if err != nil {
 		return answer, err
 	}
 
-	return pgx.CollectOneRow(rows, pgx.RowToStructByName[data.UserOption])
+	return pgx.CollectOneRow(rows, pgx.RowToStructByName[data.UserAnswer])
 }
 
 func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, id uuid.UUID, fileID string) error {
@@ -317,9 +317,9 @@ func (r *QuestionRepository) updateOptionImageTx(ctx context.Context, tx pgx.Tx,
 
 func (r *QuestionRepository) GetQuestionStats(ctx context.Context, questionID uuid.UUID) (map[int]int, error) {
 	const sql = `
-	SELECT qo.hero_id, COUNT(uq.user_id) as answer_count
+	SELECT qo.hero_id, COUNT(ua.user_id) as answer_count
 	FROM question_options qo
-	LEFT JOIN user_questions uq ON qo.question_id = uq.question_id AND qo.hero_id = uq.hero_id
+	LEFT JOIN user_answers ua ON qo.question_id = ua.question_id AND qo.hero_id = ua.hero_id
 	WHERE qo.question_id = $1
 	GROUP BY qo.hero_id`
 

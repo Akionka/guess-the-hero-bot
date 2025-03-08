@@ -109,19 +109,19 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 	}
 
 	var (
-		userOption    data.Option
+		userAnswer    data.Option
 		correctOption data.Option
 	)
-	for _, o := range question.Options {
-		if o.Hero.ID == answer {
-			userOption = o
+	for _, opt := range question.Options {
+		if opt.Hero.ID == answer {
+			userAnswer = opt
 		}
-		if o.IsCorrect {
-			correctOption = o
+		if opt.IsCorrect {
+			correctOption = opt
 		}
 	}
 
-	if _, err = b.questionService.AnswerQuestion(ctx, user, question, userOption); err != nil {
+	if _, err = b.questionService.AnswerQuestion(ctx, user, question, userAnswer); err != nil {
 		if errors.Is(err, data.ErrAlreadyExists) {
 			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("❌ Уже ответил на этот вопрос").WithShowAlert())
 		}
@@ -132,18 +132,18 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 	isPrivate := query.Message != nil && query.Message.GetChat().Type == telego.ChatTypePrivate
 
 	if isInline || !isPrivate {
-		if userOption.IsCorrect {
+		if userAnswer.IsCorrect {
 			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("🎉 Правильно").WithShowAlert())
 		}
 		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(fmt.Sprintf("🥀 Неправильно.\nНа самом деле это %s.", correctOption.DisplayName)).WithShowAlert())
 	}
 
-	msg, err := b.questionText(ctx, question, &userOption)
+	msg, err := b.questionText(ctx, question, &userAnswer)
 	if err != nil {
 		return err
 	}
 
-	file, err := b.optionImageFile(ctx, question, &userOption)
+	file, err := b.optionImageFile(ctx, question, &userAnswer)
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		return err
 	}
 
-	if len(userOption.TelegramFileID) == 0 {
+	if len(userAnswer.TelegramFileID) == 0 {
 		fileID := ""
 		maxWidth := -1
 		for _, photo := range editedMsg.Photo {
@@ -184,7 +184,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 				fileID = photo.FileID
 			}
 		}
-		return b.questionService.UpdateOptionImage(ctx, question.ID, userOption, fileID)
+		return b.questionService.UpdateOptionImage(ctx, question.ID, userAnswer, fileID)
 	}
 
 	return err
@@ -392,11 +392,11 @@ func createProgressBar(percentage float64) string {
 	return bar
 }
 
-func (b *Bot) questionText(ctx *th.Context, question *data.Question, userOption *data.Option) (string, error) {
+func (b *Bot) questionText(ctx *th.Context, question *data.Question, userAnswer *data.Option) (string, error) {
 	var correctOption data.Option
-	for _, o := range question.Options {
-		if o.IsCorrect {
-			correctOption = o
+	for _, opt := range question.Options {
+		if opt.IsCorrect {
+			correctOption = opt
 			break
 		}
 	}
@@ -404,8 +404,8 @@ func (b *Bot) questionText(ctx *th.Context, question *data.Question, userOption 
 	var buf bytes.Buffer
 	questionTempl(question.PlayerMMR, question.Items).Render(ctx, &buf)
 	buf.WriteRune('\n')
-	if userOption != nil {
-		answerTempl(userOption.Hero, correctOption.Hero, question.PlayerPos, question.IsWon).Render(ctx, &buf)
+	if userAnswer != nil {
+		answerTempl(userAnswer.Hero, correctOption.Hero, question.PlayerPos, question.IsWon).Render(ctx, &buf)
 		buf.WriteRune('\n')
 
 		proName := ""
@@ -434,13 +434,13 @@ func (b *Bot) questionImageFile(_ *th.Context, question *data.Question) (telego.
 	return imageFile, nil
 }
 
-func (b *Bot) optionImageFile(_ *th.Context, question *data.Question, userOption *data.Option) (telego.InputFile, error) {
+func (b *Bot) optionImageFile(_ *th.Context, question *data.Question, userAnswer *data.Option) (telego.InputFile, error) {
 	var imageFile telego.InputFile
 
-	if len(userOption.TelegramFileID) > 0 {
-		imageFile = tu.FileFromID(userOption.TelegramFileID)
+	if len(userAnswer.TelegramFileID) > 0 {
+		imageFile = tu.FileFromID(userAnswer.TelegramFileID)
 	} else {
-		collage, err := b.collager.Collage(question.Options, question.Items, userOption)
+		collage, err := b.collager.Collage(question.Options, question.Items, userAnswer)
 		if err != nil {
 			return imageFile, err
 		}
@@ -452,9 +452,9 @@ func (b *Bot) optionImageFile(_ *th.Context, question *data.Question, userOption
 
 func (b *Bot) questionKeyboard(ctx *th.Context, question *data.Question) *telego.InlineKeyboardMarkup {
 	btns := make([]telego.InlineKeyboardButton, 0, len(question.Options)+3)
-	for _, o := range question.Options {
-		cb := fmt.Sprintf("answer_%s_%d", question.ID, o.Hero.ID)
-		btns = append(btns, tu.InlineKeyboardButton(o.Hero.DisplayName).WithCallbackData(cb))
+	for _, opt := range question.Options {
+		cb := fmt.Sprintf("answer_%s_%d", question.ID, opt.Hero.ID)
+		btns = append(btns, tu.InlineKeyboardButton(opt.Hero.DisplayName).WithCallbackData(cb))
 	}
 	myAnswerCb := fmt.Sprintf("my_answer_%s", question.ID)
 	statsCb := fmt.Sprintf("stats_%s", question.ID)

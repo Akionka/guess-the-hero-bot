@@ -32,8 +32,8 @@ type Option struct {
 	TelegramFileID string `db:"telegram_file_id"`
 }
 
-type UserOption struct {
-	ID uuid.UUID `db:"user_question_id"`
+type UserAnswer struct {
 	Option
+	ID         uuid.UUID `db:"user_answer_id"`
 	AnsweredAt time.Time `db:"answered_at"`
 }

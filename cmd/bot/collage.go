@@ -44,7 +44,7 @@ func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choi
 
 	correctOptionOutlineColor := color.RGBA{0x00, 0xFF, 0x00, 0xFF}     // Green
 	wrongOptionOutlineColor := color.RGBA{0xFF, 0x00, 0x00, 0xFF}       // Red
-	correctUserOptionOutlineColor := color.RGBA{0xFF, 0xCC, 0x00, 0xFF} // Gold
+	correctUserAnswerOutlineColor := color.RGBA{0xFF, 0xCC, 0x00, 0xFF} // Gold
 	backgroundColor := color.RGBA{0x3a, 0x3a, 0x3a, 0xFF}
 
 	canvas := image.NewRGBA(image.Rect(0, 0, canvasWidth, canvasHeight))
@@ -57,9 +57,9 @@ func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choi
 	draw.Draw(wrongOptionOutline, wrongOptionOutline.Bounds(), image.NewUniform(wrongOptionOutlineColor), image.Point{}, draw.Src)
 	wrongOptionOutline = roundedCorners(wrongOptionOutline, heroRoundRadius)
 
-	var correctUserOptionOutline draw.Image = image.NewRGBA(image.Rect(0, 0, heroWidth+heroOutline*2, heroHeight+heroOutline*2))
-	draw.Draw(correctUserOptionOutline, correctUserOptionOutline.Bounds(), image.NewUniform(correctUserOptionOutlineColor), image.Point{}, draw.Src)
-	correctUserOptionOutline = roundedCorners(correctUserOptionOutline, heroRoundRadius)
+	var correctUserAnswerOutline draw.Image = image.NewRGBA(image.Rect(0, 0, heroWidth+heroOutline*2, heroHeight+heroOutline*2))
+	draw.Draw(correctUserAnswerOutline, correctUserAnswerOutline.Bounds(), image.NewUniform(correctUserAnswerOutlineColor), image.Point{}, draw.Src)
+	correctUserAnswerOutline = roundedCorners(correctUserAnswerOutline, heroRoundRadius)
 
 	draw.Draw(canvas, canvas.Bounds(), image.NewUniform(backgroundColor), image.Point{}, draw.Src)
 
@@ -81,7 +81,7 @@ func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choi
 
 		if choice != nil && choice.Hero.ID == option.Hero.ID {
 			if option.IsCorrect {
-				draw.Draw(canvas, image.Rect(x-heroOutline, y-heroOutline, x+heroWidth+heroOutline, y+heroHeight+heroOutline), correctUserOptionOutline, image.Point{}, draw.Over)
+				draw.Draw(canvas, image.Rect(x-heroOutline, y-heroOutline, x+heroWidth+heroOutline, y+heroHeight+heroOutline), correctUserAnswerOutline, image.Point{}, draw.Over)
 			} else {
 				draw.Draw(canvas, image.Rect(x-heroOutline, y-heroOutline, x+heroWidth+heroOutline, y+heroHeight+heroOutline), wrongOptionOutline, image.Point{}, draw.Over)
 			}
