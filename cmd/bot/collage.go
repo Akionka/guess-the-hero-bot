@@ -6,7 +6,8 @@ import (
 	"image/color"
 	"image/draw"
 
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/data"
+
 	"github.com/anthonynsimon/bild/transform"
 	"github.com/patrickmn/go-cache"
 )

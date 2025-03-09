@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"image"
 
+	"github.com/akionka/akionkabot/internal/data"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/patrickmn/go-cache"
+
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-
-	"github.com/akionka/akionkabot/data"
-	"github.com/minio/minio-go/v7"
-	"github.com/patrickmn/go-cache"
 
 	_ "golang.org/x/image/webp"
 )

@@ -3,24 +3,28 @@ package postgres
 import (
 	"cmp"
 	"context"
+	"log/slog"
 	"slices"
 
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/data"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type HeroRepository struct {
-	db *pgxpool.Pool
+	db     *pgxpool.Pool
+	logger *slog.Logger
 }
 
-func NewHeroRepository(db *pgxpool.Pool) *HeroRepository {
+func NewHeroRepository(db *pgxpool.Pool, logger *slog.Logger) *HeroRepository {
 	return &HeroRepository{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 }
 
-func (r *HeroRepository) GetHeroByID(ctx context.Context, heroID int) (data.Hero, error) {
+func (r *HeroRepository) GetHeroByID(ctx context.Context, id int) (data.Hero, error) {
 	var hero data.Hero
 
 	tx, err := r.db.Begin(ctx)
@@ -29,7 +33,7 @@ func (r *HeroRepository) GetHeroByID(ctx context.Context, heroID int) (data.Hero
 	}
 
 	if err = transaction(ctx, tx, "GetHeroByID", func() error {
-		hero, err = r.getHeroByIDTx(ctx, tx, heroID)
+		hero, err = r.getHeroByIDTx(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -41,11 +45,12 @@ func (r *HeroRepository) GetHeroByID(ctx context.Context, heroID int) (data.Hero
 	return hero, nil
 }
 
-func (r *HeroRepository) getHeroByIDTx(ctx context.Context, tx pgx.Tx, heroID int) (data.Hero, error) {
+func (r *HeroRepository) getHeroByIDTx(ctx context.Context, tx pgx.Tx, id int) (data.Hero, error) {
 	const sql = `SELECT h.hero_id, h.display_name, h.short_name FROM heroes h WHERE h.hero_id = $1`
+	r.logger.DebugContext(ctx, "getting hero by id", slog.Int("id", id))
 
 	var hero data.Hero
-	rows, err := tx.Query(ctx, sql, heroID)
+	rows, err := tx.Query(ctx, sql, id)
 	if err != nil {
 		return hero, err
 	}
@@ -53,8 +58,8 @@ func (r *HeroRepository) getHeroByIDTx(ctx context.Context, tx pgx.Tx, heroID in
 	return pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[data.Hero])
 }
 
-func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, heroIDs []int) ([]data.Hero, error) {
-	heroes := []data.Hero{}
+func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, ids []int) ([]data.Hero, error) {
+	var heroes []data.Hero
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -62,7 +67,7 @@ func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, heroIDs []int) ([]d
 	}
 
 	if err = transaction(ctx, tx, "GetHeroesByIDs", func() error {
-		heroes, err = r.getHeroesByIDsTx(ctx, tx, heroIDs)
+		heroes, err = r.getHeroesByIDsTx(ctx, tx, ids)
 		if err != nil {
 			return err
 		}
@@ -72,7 +77,7 @@ func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, heroIDs []int) ([]d
 	}
 
 	idIndex := make(map[int]int)
-	for i, id := range heroIDs {
+	for i, id := range ids {
 		idIndex[id] = i
 	}
 
@@ -83,11 +88,12 @@ func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, heroIDs []int) ([]d
 	return heroes, nil
 }
 
-func (r *HeroRepository) getHeroesByIDsTx(ctx context.Context, tx pgx.Tx, heroIDs []int) ([]data.Hero, error) {
+func (r *HeroRepository) getHeroesByIDsTx(ctx context.Context, tx pgx.Tx, ids []int) ([]data.Hero, error) {
 	const sql = `SELECT h.hero_id, h.display_name, h.short_name FROM heroes h WHERE h.hero_id = ANY($1)`
+	r.logger.DebugContext(ctx, "getting heroes by ids", slog.Any("ids", ids))
 
-	heroes := []data.Hero{}
-	rows, err := tx.Query(ctx, sql, heroIDs)
+	var heroes []data.Hero
+	rows, err := tx.Query(ctx, sql, ids)
 	if err != nil {
 		return heroes, err
 	}

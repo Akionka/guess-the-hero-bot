@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"github.com/akionka/akionkabot/s3"
+	"github.com/akionka/akionkabot/internal/d2pt"
+	"github.com/akionka/akionkabot/internal/data"
+	"github.com/akionka/akionkabot/internal/postgres"
+	"github.com/akionka/akionkabot/internal/s3"
 
-	"github.com/akionka/akionkabot/d2pt"
-	"github.com/akionka/akionkabot/data"
-	"github.com/akionka/akionkabot/postgres"
 	"github.com/google/uuid"
 )
 

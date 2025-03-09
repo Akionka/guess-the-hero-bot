@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"time"
 
-	"github.com/akionka/akionkabot/data"
-	"github.com/akionka/akionkabot/service"
+	"github.com/akionka/akionkabot/internal/data"
+	"github.com/akionka/akionkabot/internal/service"
+
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
 )
@@ -14,7 +17,36 @@ type ctxKey int
 
 const (
 	UserKey ctxKey = iota
+	LoggerKey
 )
+
+func (b *Bot) loggerMiddleware(ctx *th.Context, update telego.Update) error {
+	return withLogger(ctx, b.logger).Next(update)
+}
+
+func withLogger(ctx *th.Context, logger *TelegoLogger) *th.Context {
+	return ctx.WithValue(LoggerKey, logger)
+}
+
+func getCtxLogger(ctx context.Context) (*TelegoLogger, bool) {
+	logger, ok := ctx.Value(LoggerKey).(*TelegoLogger)
+	return logger, ok
+}
+
+func timeElapsedMiddleware(ctx *th.Context, update telego.Update) error {
+	logger, ok := getCtxLogger(ctx)
+	if !ok {
+		return ctx.Next(update)
+	}
+
+	startTime := time.Now()
+	logger.InfoContext(ctx, "start processing update")
+	ctx.UpdateID()
+	err := ctx.Next(update)
+	endTime := time.Now()
+	logger.InfoContext(ctx, "update processed", slog.Duration("elapsed_time_ns", endTime.Sub(startTime)))
+	return err
+}
 
 func userMiddleware(service *service.UserService) func(*th.Context, telego.Update) error {
 	return func(ctx *th.Context, update telego.Update) error {

@@ -2,20 +2,24 @@ package postgres
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/data"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type QuestionRepository struct {
-	db *pgxpool.Pool
+	db     *pgxpool.Pool
+	logger *slog.Logger
 }
 
-func NewQuestionRepository(db *pgxpool.Pool) *QuestionRepository {
+func NewQuestionRepository(db *pgxpool.Pool, logger *slog.Logger) *QuestionRepository {
 	return &QuestionRepository{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -50,6 +54,7 @@ func (r *QuestionRepository) getQuestionTx(ctx context.Context, tx pgx.Tx, id uu
 	FROM questions q
 	WHERE q.question_id = $1
 	LIMIT 1`
+	r.logger.DebugContext(ctx, "getting question by id", slog.String("uuid", id.String()))
 
 	rows, err := tx.Query(ctx, sql, id)
 	if err != nil {
@@ -92,6 +97,7 @@ func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, 
 	WHERE q.is_won = $2 AND ua.question_id IS NULL
 	ORDER BY q.created_at DESC
 	LIMIT 1;`
+	r.logger.DebugContext(ctx, "getting question available for user", slog.String("user_uuid", userID.String()), slog.Bool("is_won", isWon))
 
 	rows, err := tx.Query(ctx, sql, userID, isWon)
 	if err != nil {
@@ -101,18 +107,21 @@ func (r *QuestionRepository) getQuestionAvailableForUserTx(ctx context.Context, 
 }
 
 func (r *QuestionRepository) enrichQuestionTx(ctx context.Context, tx pgx.Tx, question *data.Question) (*data.Question, error) {
-	const heroSQL = `
-	SELECT qo.is_correct, h.hero_id, h.display_name, h.short_name, qo.telegram_file_id
-	FROM question_options qo
-	INNER JOIN heroes h ON qo.hero_id = h.hero_id
-	WHERE qo.question_id = $1
-	ORDER BY qo.hero_id`
+	const (
+		heroSQL = `
+		SELECT qo.is_correct, h.hero_id, h.display_name, h.short_name, qo.telegram_file_id
+		FROM question_options qo
+		INNER JOIN heroes h ON qo.hero_id = h.hero_id
+		WHERE qo.question_id = $1
+		ORDER BY qo.hero_id`
 
-	const itemSQL = `
-	SELECT i.item_id, i.display_name, i.short_name
-	FROM question_items qi
-	INNER JOIN items i ON qi.item_id = i.item_id
-	WHERE qi.question_id = $1`
+		itemSQL = `
+		SELECT i.item_id, i.display_name, i.short_name
+		FROM question_items qi
+		INNER JOIN items i ON qi.item_id = i.item_id
+		WHERE qi.question_id = $1`
+	)
+	r.logger.DebugContext(ctx, "enriching question", slog.Any("question", question))
 
 	heroRows, err := tx.Query(ctx, heroSQL, question.ID)
 	if err != nil {
@@ -169,6 +178,7 @@ func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, ques
 	INSERT INTO questions (question_id, match_id, match_started_at, player_id, player_name, player_is_pro, player_pos, player_mmr, is_won, created_at, telegram_file_id) VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	RETURNING question_id`
+	slog.DebugContext(ctx, "saving question", slog.Any("question", question))
 
 	var questionID uuid.UUID
 
@@ -215,6 +225,7 @@ func (r *QuestionRepository) AnswerQuestion(ctx context.Context, userID uuid.UUI
 func (r *QuestionRepository) answerQuestionTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, question *data.Question, answer data.UserAnswer) (uuid.UUID, error) {
 	const sql = `INSERT INTO user_answers (user_answer_id, user_id, question_id, hero_id, answered_at) VALUES
 	($1, $2, $3, $4, $5) RETURNING user_answer_id`
+	slog.DebugContext(ctx, "saving user's answer", slog.String("user_uuid", userID.String()), slog.Any("question", question), slog.Any("answer", answer))
 
 	var userQuestionID uuid.UUID
 	if err := tx.QueryRow(ctx, sql, answer.ID, userID, question.ID, answer.Hero.ID, answer.AnsweredAt).Scan(&userQuestionID); err != nil {
@@ -252,6 +263,7 @@ func (r *QuestionRepository) getUserAnswerTx(ctx context.Context, tx pgx.Tx, id 
 	INNER JOIN public.question_options qo on ua.hero_id = qo.hero_id AND ua.question_id = qo.question_id
 	INNER JOIN public.heroes h on ua.hero_id = h.hero_id
 	WHERE ua.question_id = $1 AND ua.user_id = $2`
+	slog.DebugContext(ctx, "getting user's answer to question", slog.String("question_uuid", id.String()), slog.String("user_id", id.String()))
 
 	var answer data.UserAnswer
 
@@ -280,6 +292,7 @@ func (r *QuestionRepository) UpdateQuestionImage(ctx context.Context, id uuid.UU
 
 func (r *QuestionRepository) updateQuestionImageTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, fileID string) error {
 	const sql = `UPDATE questions SET telegram_file_id = $1 WHERE question_id = $2`
+	slog.DebugContext(ctx, "updating question image", slog.String("question_uuid", id.String()), slog.String("file_id", fileID))
 
 	_, err := tx.Exec(ctx, sql, fileID, id)
 	if err != nil {
@@ -306,6 +319,7 @@ func (r *QuestionRepository) UpdateOptionImage(ctx context.Context, id uuid.UUID
 
 func (r *QuestionRepository) updateOptionImageTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, option data.Option, fileID string) error {
 	const sql = `UPDATE question_options SET telegram_file_id = $1 WHERE question_id = $2 AND hero_id = $3`
+	slog.DebugContext(ctx, "updating option image", slog.String("question_uuid", id.String()), slog.String("file_id", fileID), slog.Any("option", option))
 
 	_, err := tx.Exec(ctx, sql, fileID, id, option.Hero.ID)
 	if err != nil {
@@ -322,6 +336,7 @@ func (r *QuestionRepository) GetQuestionStats(ctx context.Context, questionID uu
 	LEFT JOIN user_answers ua ON qo.question_id = ua.question_id AND qo.hero_id = ua.hero_id
 	WHERE qo.question_id = $1
 	GROUP BY qo.hero_id`
+	slog.DebugContext(ctx, "getting question stats", slog.String("question_uuid", questionID.String()))
 
 	rows, err := r.db.Query(ctx, sql, questionID)
 	if err != nil {

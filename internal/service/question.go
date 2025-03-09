@@ -5,8 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/akionka/akionkabot/d2pt"
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/d2pt"
+	"github.com/akionka/akionkabot/internal/data"
+
 	"github.com/google/uuid"
 )
 

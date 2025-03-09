@@ -2,24 +2,28 @@ package postgres
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/data"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepository struct {
-	db *pgxpool.Pool
+	db     *pgxpool.Pool
+	logger *slog.Logger
 }
 
-func NewUserRepository(db *pgxpool.Pool) *UserRepository {
+func NewUserRepository(db *pgxpool.Pool, logger *slog.Logger) *UserRepository {
 	return &UserRepository{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 }
 
-func (r *UserRepository) GetUser(ctx context.Context, userID uuid.UUID) (*data.User, error) {
+func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*data.User, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -28,7 +32,7 @@ func (r *UserRepository) GetUser(ctx context.Context, userID uuid.UUID) (*data.U
 	var user *data.User
 
 	err = transaction(ctx, tx, "GetUser", func() error {
-		user, err = r.getUserTx(ctx, tx, userID)
+		user, err = r.getUserTx(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -39,10 +43,11 @@ func (r *UserRepository) GetUser(ctx context.Context, userID uuid.UUID) (*data.U
 	return user, err
 }
 
-func (r *UserRepository) getUserTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*data.User, error) {
+func (r *UserRepository) getUserTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*data.User, error) {
 	const sql = `SELECT user_id, telegram_id, username, first_name, last_name, created_at FROM users u WHERE u.user_id = $1`
+	r.logger.DebugContext(ctx, "getting user by id", slog.String("uuid", id.String()))
 
-	rows, err := tx.Query(ctx, sql, userID)
+	rows, err := tx.Query(ctx, sql, id)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +60,7 @@ func (r *UserRepository) getUserTx(ctx context.Context, tx pgx.Tx, userID uuid.U
 	return user, nil
 }
 
-func (r *UserRepository) GetUserByTelegramID(ctx context.Context, userID int64) (*data.User, error) {
+func (r *UserRepository) GetUserByTelegramID(ctx context.Context, id int64) (*data.User, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -64,7 +69,7 @@ func (r *UserRepository) GetUserByTelegramID(ctx context.Context, userID int64) 
 	var user *data.User
 
 	err = transaction(ctx, tx, "GetUserByTelegramID", func() error {
-		user, err = r.getUserByTelegramIDTx(ctx, tx, userID)
+		user, err = r.getUserByTelegramIDTx(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -75,10 +80,11 @@ func (r *UserRepository) GetUserByTelegramID(ctx context.Context, userID int64) 
 	return user, err
 }
 
-func (r *UserRepository) getUserByTelegramIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*data.User, error) {
+func (r *UserRepository) getUserByTelegramIDTx(ctx context.Context, tx pgx.Tx, id int64) (*data.User, error) {
 	const sql = `SELECT user_id, telegram_id, username, first_name, last_name, created_at FROM users u WHERE u.telegram_id = $1`
+	r.logger.DebugContext(ctx, "getting user by telegram id", slog.Int64("telegram_id", id))
 
-	rows, err := tx.Query(ctx, sql, userID)
+	rows, err := tx.Query(ctx, sql, id)
 	if err != nil {
 		return nil, err
 	}
@@ -113,15 +119,16 @@ func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (*data.U
 
 func (r *UserRepository) saveUserTx(ctx context.Context, tx pgx.Tx, user *data.User) (uuid.UUID, error) {
 	const sql = `
-		INSERT INTO users
-		(user_id, telegram_id, username, first_name, last_name, created_at) VALUES
-		($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (telegram_id)
-		DO UPDATE SET
-			username = EXCLUDED.username,
-			first_name = EXCLUDED.first_name,
-			last_name = EXCLUDED.last_name
-		RETURNING user_id`
+	INSERT INTO users
+	(user_id, telegram_id, username, first_name, last_name, created_at) VALUES
+	($1, $2, $3, $4, $5, $6)
+	ON CONFLICT (telegram_id)
+	DO UPDATE SET
+		username = EXCLUDED.username,
+		first_name = EXCLUDED.first_name,
+		last_name = EXCLUDED.last_name
+	RETURNING user_id`
+	r.logger.DebugContext(ctx, "saving user", slog.Any("user", user))
 
 	rows, err := tx.Query(
 		ctx,

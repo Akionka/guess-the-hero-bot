@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/binary"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,14 @@ type User struct {
 	FirstName  string    `db:"first_name"`
 	LastName   string    `db:"last_name"`
 	CreatedAt  time.Time `db:"created_at"`
+}
+
+func (u *User) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("uuid", u.ID.String()),
+		slog.Int64("telegram_id", u.TelegramID),
+		slog.String("telegram_username", u.Username),
+	)
 }
 
 var _ encoding.BinaryMarshaler = (*User)(nil)

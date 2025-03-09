@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"time"
+	"log/slog"
 
-	"github.com/akionka/akionkabot/service"
+	"github.com/akionka/akionkabot/internal/service"
+
 	"github.com/mymmrac/telego"
 
 	th "github.com/mymmrac/telego/telegohandler"
@@ -13,24 +14,30 @@ import (
 type Bot struct {
 	*telego.Bot
 
+	logger *TelegoLogger
+
 	collager        Collager
 	questionService *service.QuestionService
 	userService     *service.UserService
 }
 
-func NewBot(bot *telego.Bot, collager Collager, questionService *service.QuestionService, userService *service.UserService) *Bot {
+func NewBot(bot *telego.Bot, logger *TelegoLogger, collager Collager, questionService *service.QuestionService, userService *service.UserService) *Bot {
 	return &Bot{
-		bot,
-		collager,
-		questionService,
-		userService,
+		Bot:             bot,
+		logger:          logger,
+		collager:        collager,
+		questionService: questionService,
+		userService:     userService,
 	}
 }
 
 func (b *Bot) Start(ctx context.Context) {
+	const op = "Bot.Start"
 	updates, _ := b.UpdatesViaLongPolling(ctx, nil)
 	bh, _ := th.NewBotHandler(b.Bot, updates)
 
+	bh.Use(b.loggerMiddleware)
+	bh.Use(timeElapsedMiddleware)
 	bh.Use(userMiddleware(b.userService))
 
 	bh.Handle(b.handleQuestionRequest, th.Or(th.CommandEqual("question"), th.CommandEqual("start"), th.CallbackDataEqual("next_question")))
@@ -41,28 +48,13 @@ func (b *Bot) Start(ctx context.Context) {
 
 	bh.HandleInlineQuery(b.handleQuestionShare, th.InlineQueryPrefix("question "))
 
-	done := make(chan struct{}, 1)
-
-	go func() {
-		<-ctx.Done()
-
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), time.Second*20)
-		defer stopCancel()
-
-		for len(updates) > 0 {
-			select {
-			case <-stopCtx.Done():
-				break
-			case <-time.After(time.Microsecond * 100):
-			}
-		}
-
-		_ = bh.StopWithContext(stopCtx)
-
-		done <- struct{}{}
-	}()
-
 	go bh.Start()
 
-	<-done
+	<-ctx.Done()
+	b.logger.Info("stopping bot", opAttr(op))
+	bh.Stop()
+}
+
+func opAttr(op string) slog.Attr {
+	return slog.String("op", op)
 }

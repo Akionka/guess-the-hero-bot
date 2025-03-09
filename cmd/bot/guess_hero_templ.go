@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"strconv"
 
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/data"
 )
 
 func questionTempl(mmr int, items []data.Item) templ.Component {

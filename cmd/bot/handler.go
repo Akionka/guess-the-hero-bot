@@ -9,7 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/data"
+
 	"github.com/google/uuid"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegoapi"

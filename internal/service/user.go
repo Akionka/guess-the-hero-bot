@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/akionka/akionkabot/data"
+	"github.com/akionka/akionkabot/internal/data"
+
 	"github.com/google/uuid"
 	"github.com/patrickmn/go-cache"
 )
