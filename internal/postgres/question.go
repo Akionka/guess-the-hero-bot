@@ -113,7 +113,7 @@ func (r *QuestionRepository) enrichQuestionTx(ctx context.Context, tx pgx.Tx, qu
 		FROM question_options qo
 		INNER JOIN heroes h ON qo.hero_id = h.hero_id
 		WHERE qo.question_id = $1
-		ORDER BY qo.hero_id`
+		ORDER BY qo.order`
 
 		itemSQL = `
 		SELECT i.item_id, i.display_name, i.short_name
@@ -194,8 +194,8 @@ func (r *QuestionRepository) saveQuestionTx(ctx context.Context, tx pgx.Tx, ques
 		return questionID, err
 	}
 
-	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"question_options"}, []string{"question_id", "hero_id", "is_correct", "telegram_file_id"}, pgx.CopyFromSlice(len(question.Options), func(i int) ([]any, error) {
-		return []any{questionID, question.Options[i].Hero.ID, question.Options[i].IsCorrect, question.Options[i].TelegramFileID}, nil
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"question_options"}, []string{"question_id", "hero_id", "is_correct", "telegram_file_id", "order"}, pgx.CopyFromSlice(len(question.Options), func(i int) ([]any, error) {
+		return []any{questionID, question.Options[i].Hero.ID, question.Options[i].IsCorrect, question.Options[i].TelegramFileID, i}, nil
 	})); err != nil {
 		return questionID, err
 	}
