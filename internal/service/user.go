@@ -2,48 +2,32 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/akionka/akionkabot/internal/data"
-
 	"github.com/google/uuid"
-	"github.com/patrickmn/go-cache"
 )
 
 type UserService struct {
-	repo  UserRepository
-	cache *cache.Cache
+	repo UserRepository
 }
 
-func NewUserService(repo UserRepository, cache *cache.Cache) *UserService {
+func NewUserService(repo UserRepository) *UserService {
 	return &UserService{
-		repo:  repo,
-		cache: cache,
+		repo: repo,
 	}
 }
 
-func (s UserService) GetUserByTelegramID(ctx context.Context, id int64) (*data.User, error) {
-	userKey := fmt.Sprintf("user_%d", id)
-	user := &data.User{}
-
-	v, found := s.cache.Get(userKey)
-	if found {
-		user = v.(*data.User)
-		return user, nil
-	}
-
+func (s *UserService) GetUserByTelegramID(ctx context.Context, id int64) (*data.User, error) {
 	user, err := s.repo.GetUserByTelegramID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	s.cache.Set(userKey, user, cache.DefaultExpiration)
-
 	return user, nil
 }
 
-func (s UserService) CreateUser(ctx context.Context, user *data.User) (*data.User, error) {
+func (s *UserService) CreateUser(ctx context.Context, user *data.User) (*data.User, error) {
 	user = &data.User{
 		ID:         uuid.Must(uuid.NewV7()),
 		TelegramID: user.TelegramID,

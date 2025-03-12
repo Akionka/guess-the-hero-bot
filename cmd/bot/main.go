@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/akionka/akionkabot/internal/cache"
 	"github.com/akionka/akionkabot/internal/d2pt"
 	"github.com/akionka/akionkabot/internal/postgres"
 	"github.com/akionka/akionkabot/internal/s3"
@@ -18,7 +19,8 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/mymmrac/telego"
-	"github.com/patrickmn/go-cache"
+
+	gocache "github.com/patrickmn/go-cache"
 
 	_ "net/http/pprof"
 )
@@ -79,17 +81,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := cache.New(time.Minute, time.Minute*5)
+	c := gocache.New(time.Minute, time.Minute*5)
 
 	questionRepo := postgres.NewQuestionRepository(pool, logger.Logger)
 	heroRepo := postgres.NewHeroRepository(pool, logger.Logger)
 	itemRepo := postgres.NewItemRepository(pool, logger.Logger)
-	userRepo := postgres.NewUserRepository(pool, logger.Logger)
+	userRepo := cache.NewUserRepository(postgres.NewUserRepository(pool, logger.Logger), c)
 	heroImageFetcher := s3.NewHeroImageFetcher(minioClient, c)
 	itemImageFetcher := s3.NewItemImageFetcher(minioClient, c)
 
 	questionService := service.NewQuestionService(questionRepo, d2ptClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
-	userService := service.NewUserService(userRepo, c)
+	userService := service.NewUserService(userRepo)
 
 	collager := NewDefaultCollager(c)
 
