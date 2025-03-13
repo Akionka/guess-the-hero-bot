@@ -36,6 +36,7 @@ func (r *ItemRepository) GetItemByID(ctx context.Context, id int) (data.Item, er
 
 	item, err = pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[data.Item])
 	if err != nil {
+		err = pgErrToDomain(err)
 		return item, fmt.Errorf("error collecting item: %w", err)
 	}
 
@@ -44,22 +45,25 @@ func (r *ItemRepository) GetItemByID(ctx context.Context, id int) (data.Item, er
 
 func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []int) ([]data.Item, error) {
 	const sql = `SELECT i.item_id, i.display_name, i.short_name FROM items i WHERE i.item_id = ANY($1)`
-	var items []data.Item
 
 	r.logger.DebugContext(ctx, "getting items by ids", slog.Any("ids", ids))
 	rows, err := r.db.Query(ctx, sql, ids)
 	if err != nil {
-		return items, fmt.Errorf("error getting items by ids: %w", err)
+		return nil, fmt.Errorf("error getting items by ids: %w", err)
+	}
+
+	items, err := pgx.CollectRows(rows, pgx.RowToStructByName[data.Item])
+	if err != nil {
+		return nil, fmt.Errorf("error collecting items: %w", err)
+	}
+
+	if len(items) != len(ids) {
+		return nil, data.ErrNotFound
 	}
 
 	idIndex := make(map[int]int)
 	for i, id := range ids {
 		idIndex[id] = i
-	}
-
-	items, err = pgx.CollectRows(rows, pgx.RowToStructByName[data.Item])
-	if err != nil {
-		return items, fmt.Errorf("error collecting items: %w", err)
 	}
 
 	slices.SortStableFunc(items, func(i1 data.Item, i2 data.Item) int {

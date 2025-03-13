@@ -340,6 +340,7 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 	}
 
 	if err = tx.QueryRow(ctx, insertQuestion, q.ID, q.Match.ID, q.Player.Player.SteamID, q.CreatedAt, q.TelegramFileID).Scan(&questionID); err != nil {
+		err = pgErrToDomain(err)
 		return questionID, fmt.Errorf("error inserting question: %w", err)
 	}
 
@@ -380,8 +381,9 @@ func (r *QuestionRepository) GetUserAnswer(ctx context.Context, id uuid.UUID, us
 		return answer, fmt.Errorf("error getting user's answer: %w", err)
 	}
 
-	answer, err = pgx.CollectOneRow(rows, pgx.RowToStructByName[data.UserAnswer])
+	answer, err = pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[data.UserAnswer])
 	if err != nil {
+		err = pgErrToDomain(err)
 		return answer, fmt.Errorf("error collecting user's answer: %w", err)
 	}
 

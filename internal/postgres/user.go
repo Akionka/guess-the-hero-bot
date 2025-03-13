@@ -34,6 +34,7 @@ func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*data.User,
 
 	user, err := pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[data.User])
 	if err != nil {
+		err = pgErrToDomain(err)
 		return nil, fmt.Errorf("error collecting user: %w", err)
 	}
 
@@ -51,6 +52,7 @@ func (r *UserRepository) GetUserByTelegramID(ctx context.Context, id int64) (*da
 
 	user, err := pgx.CollectOneRow(rows, pgx.RowToAddrOfStructByName[data.User])
 	if err != nil {
+		err = pgErrToDomain(err)
 		return nil, fmt.Errorf("error collecting user: %w", err)
 	}
 

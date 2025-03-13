@@ -36,6 +36,7 @@ func (r *HeroRepository) GetHeroByID(ctx context.Context, id int) (data.Hero, er
 
 	hero, err = pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[data.Hero])
 	if err != nil {
+		err = pgErrToDomain(err)
 		return hero, fmt.Errorf("error collecting hero: %w", err)
 	}
 
@@ -44,22 +45,25 @@ func (r *HeroRepository) GetHeroByID(ctx context.Context, id int) (data.Hero, er
 
 func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, ids []int) ([]data.Hero, error) {
 	const sql = `SELECT h.hero_id, h.display_name, h.short_name FROM heroes h WHERE h.hero_id = ANY($1)`
-	var heroes []data.Hero
 
 	r.logger.DebugContext(ctx, "getting heroes by ids", slog.Any("ids", ids))
 	rows, err := r.db.Query(ctx, sql, ids)
 	if err != nil {
-		return heroes, fmt.Errorf("error getting heroes by ids: %w", err)
+		return nil, fmt.Errorf("error getting heroes by ids: %w", err)
+	}
+
+	heroes, err := pgx.CollectRows(rows, pgx.RowToStructByName[data.Hero])
+	if err != nil {
+		return nil, fmt.Errorf("error collecting heroes: %w", err)
+	}
+
+	if len(heroes) != len(ids) {
+		return nil, data.ErrNotFound
 	}
 
 	idIndex := make(map[int]int)
 	for i, id := range ids {
 		idIndex[id] = i
-	}
-
-	heroes, err = pgx.CollectRows(rows, pgx.RowToStructByName[data.Hero])
-	if err != nil {
-		return heroes, fmt.Errorf("error collecting heroes: %w", err)
 	}
 
 	slices.SortStableFunc(heroes, func(h1 data.Hero, h2 data.Hero) int {

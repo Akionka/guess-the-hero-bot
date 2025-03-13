@@ -110,5 +110,4 @@ func main() {
 	logger.Info("starting bot", slog.String("bot_token", botToken))
 
 	akionkaBot.Start(ctx)
-
 }
