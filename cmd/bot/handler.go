@@ -321,6 +321,14 @@ func (b *Bot) handleStats(ctx *th.Context, query telego.CallbackQuery) error {
 		return err
 	}
 
+	userAnswer, err := b.questionService.GetUserAnswer(ctx, id, user.ID)
+	if err != nil {
+		if errors.Is(err, data.ErrNotFound) {
+			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("Статистика доступна только для ответивших"))
+		}
+		return err
+	}
+
 	question, err := b.questionService.GetQuestion(ctx, id)
 	if err != nil {
 		return err
@@ -342,13 +350,6 @@ func (b *Bot) handleStats(ctx *th.Context, query telego.CallbackQuery) error {
 	if totalAnswers == 0 {
 		statsText.WriteString("На этот вопрос ещё никто не ответил.")
 		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(statsText.String()).WithShowAlert())
-	}
-
-	userAnswer, err := b.questionService.GetUserAnswer(ctx, id, user.ID)
-	if err != nil {
-		if !errors.Is(err, data.ErrNotFound) {
-			return err
-		}
 	}
 
 	for _, opt := range question.Options {
