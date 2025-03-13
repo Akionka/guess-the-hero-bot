@@ -43,21 +43,20 @@ func main() {
 		LogErrors: true,
 		LogDebug:  false,
 	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
 	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
 	defer pool.Close()
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
 
 	botToken := os.Getenv("BOT_TOKEN")
 
