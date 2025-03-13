@@ -6,7 +6,6 @@ import (
 	"image"
 
 	"github.com/akionka/akionkabot/internal/data"
-
 	"github.com/minio/minio-go/v7"
 	"github.com/patrickmn/go-cache"
 

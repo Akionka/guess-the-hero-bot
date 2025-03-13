@@ -14,13 +14,13 @@ import (
 type QuestionService struct {
 	repo             QuestionRepository
 	questionFetcher  QuestionFetcher
-	heroRepo         HeroRepository
-	itemRepo         ItemRepository
+	heroRepo         HeroProvider
+	itemRepo         ItemProvider
 	heroImageFetcher ImageFetcher
 	itemImageFetcher ImageFetcher
 }
 
-func NewQuestionService(repo QuestionRepository, questionFetcher QuestionFetcher, heroRepo HeroRepository, itemRepo ItemRepository, heroImageFetcher ImageFetcher, itemImageFetcher ImageFetcher) *QuestionService {
+func NewQuestionService(repo QuestionRepository, questionFetcher QuestionFetcher, heroRepo HeroProvider, itemRepo ItemProvider, heroImageFetcher ImageFetcher, itemImageFetcher ImageFetcher) *QuestionService {
 	return &QuestionService{
 		repo:             repo,
 		questionFetcher:  questionFetcher,
@@ -45,6 +45,7 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 	if err == nil {
 		return s.fetchQuestionImages(ctx, question)
 	}
+	var errs error
 
 	for range 4 {
 		qr, err := s.questionFetcher.FetchQuestion(ctx, isWon)
@@ -56,25 +57,29 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 		question.ID = uuid.Must(uuid.NewV7())
 		question.CreatedAt = time.Now()
 
-		question, err = s.repo.SaveQuestion(ctx, question)
+		questionID, err := s.repo.SaveQuestion(ctx, question)
 		if err != nil {
-			if errors.Is(err, data.ErrAlreadyExists) {
-				continue
-			}
-			return nil, err
+			errs = errors.Join(errs, err)
+			continue
+		}
+
+		question, err = s.repo.GetQuestion(ctx, questionID)
+		if err != nil {
+			errs = errors.Join(errs, err)
+			continue
 		}
 
 		return s.fetchQuestionImages(ctx, question)
 	}
 
-	return nil, data.ErrAlreadyExists
+	return nil, errs
 }
 
 func (s *QuestionService) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserAnswer, error) {
 	return s.repo.GetUserAnswer(ctx, id, userID)
 }
 
-func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, option data.Option) (data.UserAnswer, error) {
+func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, option data.Option) error {
 	answer := data.UserAnswer{
 		ID:         uuid.Must(uuid.NewV7()),
 		Option:     option,
@@ -104,22 +109,17 @@ func (s *QuestionService) fetchQuestionImages(ctx context.Context, question *dat
 		question.Options[i].Hero.Image = image
 	}
 
-	for i, item := range question.Items {
+	for i, item := range question.Player.Items {
 		image, err := s.itemImageFetcher.FetchImage(ctx, item.ShortName)
 		if err != nil {
 			return nil, err
 		}
-		question.Items[i].Image = image
+		question.Player.Items[i].Image = image
 	}
 	return question, nil
 }
 
-func (s *QuestionService) convertQuestionResponse(qr *d2pt.Question) *data.Question {
-	items := []data.Item{}
-	for _, item := range qr.Items {
-		items = append(items, data.Item{ID: item})
-	}
-
+func (s *QuestionService) convertQuestionResponse(qr *d2pt.QuestionResponse) *data.Question {
 	options := []data.Option{}
 	for _, option := range qr.WrongOptions {
 		options = append(options, data.Option{
@@ -133,32 +133,15 @@ func (s *QuestionService) convertQuestionResponse(qr *d2pt.Question) *data.Quest
 	})
 
 	return &data.Question{
-		MatchID:        qr.MatchID,
-		MatchStartedAt: time.Unix(qr.ActivateTime, 0),
-		PlayerID:       qr.AccountID,
-		PlayerName:     qr.Name,
-		PlayerIsPro:    bool(qr.IsPro),
-		PlayerPos:      positionFromQuestionResponse(qr.Pos),
-		PlayerMMR:      qr.MMR,
-		IsWon:          bool(qr.IsWon),
-		Items:          items,
-		Options:        options,
-	}
-}
-
-func positionFromQuestionResponse(str string) data.Position {
-	switch str {
-	case "pos 1":
-		return data.PositionCarry
-	case "pos 2":
-		return data.PositionMid
-	case "pos 3":
-		return data.PositionOfflane
-	case "pos 4":
-		return data.PositionSoftSupport
-	case "pos 5":
-		return data.PositionHardSupport
-	default:
-		return data.PositionUnknown
+		Match: data.Match{
+			ID:     qr.MatchID,
+			AvgMMR: &qr.MMR,
+		},
+		Player: &data.MatchPlayer{
+			Player: data.Player{
+				SteamID: qr.AccountID,
+			},
+		},
+		Options: options,
 	}
 }

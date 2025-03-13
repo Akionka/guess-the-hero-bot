@@ -3,11 +3,11 @@ package postgres
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 
 	"github.com/akionka/akionkabot/internal/data"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -25,55 +25,31 @@ func NewItemRepository(db *pgxpool.Pool, logger *slog.Logger) *ItemRepository {
 }
 
 func (r *ItemRepository) GetItemByID(ctx context.Context, id int) (data.Item, error) {
+	const sql = `SELECT i.item_id, i.display_name, i.short_name FROM items i WHERE i.item_id = $1`
 	var item data.Item
 
-	tx, err := r.db.Begin(ctx)
+	r.logger.DebugContext(ctx, "getting item by id", slog.Int("id", id))
+	rows, err := r.db.Query(ctx, sql, id)
 	if err != nil {
-		return item, err
+		return item, fmt.Errorf("error getting item by id: %w", err)
 	}
 
-	if err = transaction(ctx, tx, "GetItemByID", func() error {
-		item, err = r.getItemByIDTx(ctx, tx, id)
-		if err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return item, err
+	item, err = pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[data.Item])
+	if err != nil {
+		return item, fmt.Errorf("error collecting item: %w", err)
 	}
 
 	return item, nil
 }
 
-func (r *ItemRepository) getItemByIDTx(ctx context.Context, tx pgx.Tx, id int) (data.Item, error) {
-	const sql = `SELECT i.item_id, i.display_name, i.short_name FROM items i WHERE i.item_id = $1`
-	r.logger.DebugContext(ctx, "getting item by id", slog.Int("id", id))
-
-	var item data.Item
-	rows, err := tx.Query(ctx, sql, id)
-	if err != nil {
-		return item, err
-	}
-
-	return pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[data.Item])
-}
-
 func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []int) ([]data.Item, error) {
+	const sql = `SELECT i.item_id, i.display_name, i.short_name FROM items i WHERE i.item_id = ANY($1)`
 	var items []data.Item
 
-	tx, err := r.db.Begin(ctx)
+	r.logger.DebugContext(ctx, "getting items by ids", slog.Any("ids", ids))
+	rows, err := r.db.Query(ctx, sql, ids)
 	if err != nil {
-		return items, err
-	}
-
-	if err = transaction(ctx, tx, "GetItemsByIDs", func() error {
-		items, err = r.getItemsByIDsTx(ctx, tx, ids)
-		if err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return items, err
+		return items, fmt.Errorf("error getting items by ids: %w", err)
 	}
 
 	idIndex := make(map[int]int)
@@ -81,22 +57,14 @@ func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []int) ([]data.I
 		idIndex[id] = i
 	}
 
-	slices.SortStableFunc(items, func(h1 data.Item, h2 data.Item) int {
-		return cmp.Compare(idIndex[h1.ID], idIndex[h2.ID])
+	items, err = pgx.CollectRows(rows, pgx.RowToStructByName[data.Item])
+	if err != nil {
+		return items, fmt.Errorf("error collecting items: %w", err)
+	}
+
+	slices.SortStableFunc(items, func(i1 data.Item, i2 data.Item) int {
+		return cmp.Compare(idIndex[i1.ID], idIndex[i2.ID])
 	})
 
 	return items, nil
-}
-
-func (r *ItemRepository) getItemsByIDsTx(ctx context.Context, tx pgx.Tx, ids []int) ([]data.Item, error) {
-	const sql = `SELECT i.item_id, i.display_name, i.short_name FROM items i WHERE i.item_id = ANY($1)`
-	r.logger.DebugContext(ctx, "getting items by ids", slog.Any("ids", ids))
-
-	var items []data.Item
-	rows, err := tx.Query(ctx, sql, ids)
-	if err != nil {
-		return items, err
-	}
-
-	return pgx.CollectRows(rows, pgx.RowToStructByName[data.Item])
 }

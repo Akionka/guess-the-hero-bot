@@ -122,7 +122,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		}
 	}
 
-	if _, err = b.questionService.AnswerQuestion(ctx, user, question, userAnswer); err != nil {
+	if err = b.questionService.AnswerQuestion(ctx, user, question, userAnswer); err != nil {
 		if errors.Is(err, data.ErrAlreadyExists) {
 			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("❌ Уже ответил на этот вопрос").WithShowAlert())
 		}
@@ -136,7 +136,7 @@ func (b *Bot) handleQuestionAnswer(ctx *th.Context, query telego.CallbackQuery) 
 		if userAnswer.IsCorrect {
 			return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText("🎉 Правильно").WithShowAlert())
 		}
-		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(fmt.Sprintf("🥀 Неправильно.\nНа самом деле это %s.", correctOption.DisplayName)).WithShowAlert())
+		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(fmt.Sprintf("🥀 Неправильно.\nНа самом деле это %s.", correctOption.Hero.DisplayName)).WithShowAlert())
 	}
 
 	msg, err := b.questionText(ctx, question, &userAnswer)
@@ -307,7 +307,7 @@ func (b *Bot) handleMyAnswer(ctx *th.Context, query telego.CallbackQuery) error 
 		emoji = "❌"
 	}
 
-	return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(fmt.Sprintf("Твой ответ: %s\nПравильный ответ: %s %s", answer.DisplayName, correctAnswer.DisplayName, emoji)).WithShowAlert())
+	return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(query.ID).WithText(fmt.Sprintf("Твой ответ: %s\nПравильный ответ: %s %s", answer.Hero.DisplayName, correctAnswer.Hero.DisplayName, emoji)).WithShowAlert())
 }
 
 func (b *Bot) handleStats(ctx *th.Context, query telego.CallbackQuery) error {
@@ -403,17 +403,19 @@ func (b *Bot) questionText(ctx *th.Context, question *data.Question, userAnswer 
 	}
 
 	var buf bytes.Buffer
-	questionTempl(question.PlayerMMR, question.Items).Render(ctx, &buf)
+	avgMMR := 0
+	if question.Match.AvgMMR != nil {
+		avgMMR = *question.Match.AvgMMR
+	}
+
+	questionTempl(avgMMR, question.Player.Items).Render(ctx, &buf)
 	buf.WriteRune('\n')
 	if userAnswer != nil {
-		answerTempl(userAnswer.Hero, correctOption.Hero, question.PlayerPos, question.IsWon).Render(ctx, &buf)
+		answerTempl(userAnswer.Hero, correctOption.Hero, question.Player.Position, question.Match.RadiantWon == question.Player.IsRadiant).Render(ctx, &buf)
 		buf.WriteRune('\n')
 
-		proName := ""
-		if question.PlayerIsPro {
-			proName = question.PlayerName
-		}
-		matchCredentials(correctOption.Hero.DisplayName, question.MatchID, question.PlayerID, proName).Render(ctx, &buf)
+		proName := question.Player.Player.ProName
+		matchCredentials(correctOption.Hero.DisplayName, question.Match.ID, question.Player.Player.SteamID, proName).Render(ctx, &buf)
 	}
 
 	return buf.String(), nil
@@ -425,7 +427,7 @@ func (b *Bot) questionImageFile(_ *th.Context, question *data.Question) (telego.
 	if len(question.TelegramFileID) > 0 {
 		imageFile = tu.FileFromID(question.TelegramFileID)
 	} else {
-		collage, err := b.collager.Collage(question.Options, question.Items, nil)
+		collage, err := b.collager.Collage(question.Options, question.Player.Items, nil)
 		if err != nil {
 			return imageFile, err
 		}
@@ -441,7 +443,7 @@ func (b *Bot) optionImageFile(_ *th.Context, question *data.Question, userAnswer
 	if len(userAnswer.TelegramFileID) > 0 {
 		imageFile = tu.FileFromID(userAnswer.TelegramFileID)
 	} else {
-		collage, err := b.collager.Collage(question.Options, question.Items, userAnswer)
+		collage, err := b.collager.Collage(question.Options, question.Player.Items, userAnswer)
 		if err != nil {
 			return imageFile, err
 		}

@@ -7,7 +7,6 @@ import (
 	"image/draw"
 
 	"github.com/akionka/akionkabot/internal/data"
-
 	"github.com/anthonynsimon/bild/transform"
 	"github.com/patrickmn/go-cache"
 )
@@ -66,7 +65,7 @@ func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choi
 
 	for i, option := range options {
 		var roundedHero image.Image
-		heroKey := fmt.Sprintf("hero_rounded_img_%s", option.ShortName)
+		heroKey := fmt.Sprintf("img/hero_rounded_%s", option.Hero.ShortName)
 
 		v, found := c.cache.Get(heroKey)
 		if !found {
@@ -97,7 +96,7 @@ func (c *DefaultCollager) Collage(options []data.Option, items []data.Item, choi
 
 	for i, item := range items {
 		var roundedItem image.Image
-		itemKey := fmt.Sprintf("item_rounded_img_%s", item.ShortName)
+		itemKey := fmt.Sprintf("img/item_rounded_%s", item.ShortName)
 
 		v, found := c.cache.Get(itemKey)
 		if !found {

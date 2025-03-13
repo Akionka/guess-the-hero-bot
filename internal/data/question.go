@@ -10,17 +10,9 @@ import (
 type Question struct {
 	ID uuid.UUID `db:"question_id"`
 
-	MatchID        int64     `db:"match_id"`
-	MatchStartedAt time.Time `db:"match_started_at"`
+	Match  Match        `db:"-"`
+	Player *MatchPlayer `db:"-"`
 
-	PlayerID    int64    `db:"player_id"`
-	PlayerName  string   `db:"player_name"`
-	PlayerIsPro bool     `db:"player_is_pro"`
-	PlayerPos   Position `db:"player_pos"`
-	PlayerMMR   int      `db:"player_mmr"`
-	IsWon       bool     `db:"is_won"`
-
-	Items   []Item   `db:"-"`
 	Options []Option `db:"-"`
 
 	TelegramFileID string    `db:"telegram_file_id"`
@@ -34,7 +26,7 @@ func (q *Question) LogValue() slog.Value {
 }
 
 type Option struct {
-	Hero           `db:"-"`
+	Hero           Hero   `db:"-"`
 	IsCorrect      bool   `db:"is_correct"`
 	TelegramFileID string `db:"telegram_file_id"`
 }
@@ -47,7 +39,7 @@ func (o *Option) LogValue() slog.Value {
 }
 
 type UserAnswer struct {
-	Option
+	Option     `db:"-"`
 	ID         uuid.UUID `db:"user_answer_id"`
 	AnsweredAt time.Time `db:"answered_at"`
 }

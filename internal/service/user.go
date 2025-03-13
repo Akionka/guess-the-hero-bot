@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/akionka/akionkabot/internal/data"
@@ -36,6 +37,15 @@ func (s *UserService) CreateUser(ctx context.Context, user *data.User) (*data.Us
 		LastName:   user.LastName,
 		CreatedAt:  time.Now(),
 	}
-	user, err := s.repo.SaveUser(ctx, user)
-	return user, err
+	userID, err := s.repo.SaveUser(ctx, user)
+	if err != nil {
+		return nil, fmt.Errorf("error saving user: %w", err)
+	}
+
+	user, err = s.repo.GetUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user: %w", err)
+	}
+
+	return user, nil
 }

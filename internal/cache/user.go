@@ -63,20 +63,17 @@ func (r *UserRepository) GetUserByTelegramID(ctx context.Context, id int64) (*da
 
 }
 
-func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (*data.User, error) {
+func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (uuid.UUID, error) {
 	userKeyID := fmt.Sprintf("user_%s", user.ID)
 	userKeyTelegramID := fmt.Sprintf("user_%d", user.TelegramID)
 
 	r.cache.Delete(userKeyID)
 	r.cache.Delete(userKeyTelegramID)
 
-	user, err := r.repo.SaveUser(ctx, user)
+	userID, err := r.repo.SaveUser(ctx, user)
 	if err != nil {
-		return nil, err
+		return uuid.Nil, err
 	}
 
-	r.cache.Set(userKeyID, user, cache.DefaultExpiration)
-	r.cache.Set(userKeyTelegramID, user, cache.DefaultExpiration)
-
-	return user, nil
+	return userID, nil
 }
