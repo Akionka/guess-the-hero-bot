@@ -368,11 +368,18 @@ func (r *QuestionRepository) AnswerQuestion(ctx context.Context, userID uuid.UUI
 
 func (r *QuestionRepository) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserAnswer, error) {
 	const sql = `
-		SELECT ua.user_answer_id, ua.answered_at, qo.is_correct, qo.telegram_file_id, h.hero_id, h.display_name, h.short_name
-		FROM user_answers ua
-		INNER JOIN public.question_options qo on ua.hero_id = qo.hero_id AND ua.question_id = qo.question_id
-		INNER JOIN public.heroes h on ua.hero_id = h.hero_id
-		WHERE ua.question_id = $1 AND ua.user_id = $2`
+		SELECT ua.user_answer_id, ua.answered_at, qo.hero_id = mp.hero_id AS is_correct, qo.telegram_file_id, h.hero_id, h.display_name, h.short_name
+		FROM		questions			q
+		INNER JOIN  match_players		mp	ON	q.match_id = mp.match_id
+											AND	q.player_steam_id = mp.player_steam_id
+		INNER JOIN	question_options	qo	ON	q.question_id = qo.question_id
+		INNER JOIN 	user_answers		ua	ON	qo.question_id = ua.question_id AND qo.hero_id = ua.hero_id
+		INNER JOIN	heroes				h	ON	qo.hero_id = h.hero_id
+
+		WHERE	q.question_id = $1
+		AND		ua.user_id = $2
+		ORDER BY qo."order"
+	`
 	var answer data.UserAnswer
 
 	slog.DebugContext(ctx, "getting user's answer to question", slog.String("question_uuid", id.String()), slog.String("user_id", id.String()))
