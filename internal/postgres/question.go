@@ -2,11 +2,8 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
-	"slices"
 	"time"
 
 	"github.com/akionka/akionkabot/internal/data"
@@ -61,7 +58,9 @@ func (r *QuestionRepository) GetQuestion(ctx context.Context, id uuid.UUID) (*da
 		LEFT JOIN   question_options        qo  ON  q.question_id = qo.question_id              -- Question.Options
 		LEFT JOIN   heroes                  oh  ON  qo.hero_id = oh.hero_id                     -- Question.Options.Hero
 
-		WHERE q.question_id = $1`
+		WHERE q.question_id = $1
+		ORDER BY mp.is_radiant, mp.position, qo."order", mpi."order"
+	`
 
 	r.logger.DebugContext(ctx, "getting question by id", slog.String("uuid", id.String()))
 	rows, err := r.db.Query(ctx, sql, id)
@@ -123,6 +122,8 @@ func (r *QuestionRepository) GetQuestionAvailableForUser(ctx context.Context, us
 		LEFT JOIN   items                   i   ON  mpi.item_id = i.item_id                     -- Question.Match.Players.Items
 		LEFT JOIN   question_options        qo  ON  q.question_id = qo.question_id              -- Question.Options
 		LEFT JOIN   heroes                  oh  ON  qo.hero_id = oh.hero_id                     -- Question.Options.Hero
+
+		ORDER BY mp.is_radiant, mp.position, qo."order", mpi."order"
 	`
 
 	r.logger.DebugContext(ctx, "getting question available for user", slog.String("user_uuid", userID.String()), slog.Bool("is_won", isWon))
@@ -215,7 +216,7 @@ func (r *QuestionRepository) scanQuestionFromRows(rows pgx.Rows) (*data.Question
 					Players:    []data.MatchPlayer{},
 				},
 				Player:         nil,
-				Options:        []data.Option{},
+				Options:        make([]data.Option, 0, optionCount),
 				TelegramFileID: q.QTelegramFileID,
 				CreatedAt:      q.QCreatedAt,
 			}
@@ -233,6 +234,7 @@ func (r *QuestionRepository) scanQuestionFromRows(rows pgx.Rows) (*data.Question
 				TelegramFileID: *q.OTelegramFileID,
 			}
 			options[*q.OOrder] = &option
+			question.Options = append(question.Options, option)
 		}
 
 		if q.PPlayerSteamID != nil && playerMap[*q.PPlayerSteamID] == nil {
@@ -251,7 +253,7 @@ func (r *QuestionRepository) scanQuestionFromRows(rows pgx.Rows) (*data.Question
 				},
 				IsRadiant: *q.PIsRadiant,
 				Position:  *q.PPosition,
-				Items:     make([]data.Item, itemCount),
+				Items:     make([]data.Item, 0, itemCount),
 			}
 			playerMap[*q.PPlayerSteamID] = &player
 			question.Match.Players = append(question.Match.Players, player)
@@ -272,19 +274,9 @@ func (r *QuestionRepository) scanQuestionFromRows(rows pgx.Rows) (*data.Question
 				if _, ok := itemMap[key]; !ok {
 					itemMap[key] = &item
 				}
-				playerMap[*q.PPlayerSteamID].Items[*q.PIOrder] = item
+				playerMap[*q.PPlayerSteamID].Items = append(playerMap[*q.PPlayerSteamID].Items, item)
 			}
 		}
-	}
-
-	optionOrders := make([]int, 0, optionCount)
-	for k := range maps.Keys(options) {
-		optionOrders = append(optionOrders, k)
-	}
-	slices.Sort(optionOrders)
-
-	for _, order := range optionOrders {
-		question.Options = append(question.Options, *options[order])
 	}
 
 	for i := range question.Options {
