@@ -350,10 +350,11 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 
 func (r *QuestionRepository) AnswerQuestion(ctx context.Context, userID uuid.UUID, question *data.Question, answer data.UserAnswer) error {
 	const sql = `INSERT INTO user_answers (user_answer_id, user_id, question_id, hero_id, answered_at) VALUES
-		($1, $2, $3, $4, $5) RETURNING user_answer_id`
-	slog.DebugContext(ctx, "saving user's answer", slog.String("user_uuid", userID.String()), slog.Any("question", question), slog.Any("answer", answer))
-
+		($1, $2, $3, $4, $5) RETURNING user_answer_id
+	`
 	var userQuestionID uuid.UUID
+
+	slog.DebugContext(ctx, "saving user's answer", slog.String("user_uuid", userID.String()), slog.Any("question", question), slog.Any("answer", answer))
 	if err := r.db.QueryRow(ctx, sql, answer.ID, userID, question.ID, answer.Hero.ID, answer.AnsweredAt).Scan(&userQuestionID); err != nil {
 		return fmt.Errorf("error inserting user's answer: %w", err)
 	}
@@ -418,13 +419,14 @@ func (r *QuestionRepository) UpdateOptionImage(ctx context.Context, id uuid.UUID
 
 func (r *QuestionRepository) GetQuestionStats(ctx context.Context, questionID uuid.UUID) (map[int]int, error) {
 	const sql = `
-	SELECT qo.hero_id, COUNT(ua.user_id) as answer_count
-	FROM question_options qo
-	LEFT JOIN user_answers ua ON qo.question_id = ua.question_id AND qo.hero_id = ua.hero_id
-	WHERE qo.question_id = $1
-	GROUP BY qo.hero_id`
-	slog.DebugContext(ctx, "getting question stats", slog.String("question_uuid", questionID.String()))
+		SELECT qo.hero_id, COUNT(ua.user_id) as answer_count
+		FROM question_options qo
+		LEFT JOIN user_answers ua ON qo.question_id = ua.question_id AND qo.hero_id = ua.hero_id
+		WHERE qo.question_id = $1
+		GROUP BY qo.hero_id
+	`
 
+	slog.DebugContext(ctx, "getting question stats", slog.String("question_uuid", questionID.String()))
 	rows, err := r.db.Query(ctx, sql, questionID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting question stats: %w", err)
