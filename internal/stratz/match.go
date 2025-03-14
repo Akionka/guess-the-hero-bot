@@ -21,7 +21,11 @@ func (c *Client) GetMatchByID(ctx context.Context, matchID int64) (*data.Match, 
 				actualRank
 				startDateTime
 				players {
-					heroId
+					hero {
+						id
+						shortName
+						displayName
+					}
 					item0Id
 					item1Id
 					item2Id
