@@ -310,10 +310,10 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 	defer func() {
 		if err != nil {
 			rbErr := tx.Rollback(ctx)
-			if err != nil {
-				rbErr = fmt.Errorf("error rolling back transaction: %w", rbErr)
+			if rbErr != nil {
+				err = fmt.Errorf("error rolling back transaction: %w", rbErr)
 			}
-			err = errors.Join(err, rbErr)
+			return
 		}
 		err = tx.Commit(ctx)
 		if err != nil {
