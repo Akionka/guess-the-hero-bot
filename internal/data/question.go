@@ -26,7 +26,7 @@ func (q *Question) LogValue() slog.Value {
 }
 
 type Option struct {
-	Hero           Hero   `db:"-"`
+	Hero           `db:"-"`
 	IsCorrect      bool   `db:"is_correct"`
 	TelegramFileID string `db:"telegram_file_id"`
 }
