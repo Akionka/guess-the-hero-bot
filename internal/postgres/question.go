@@ -326,13 +326,16 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 	}
 
 	for _, player := range q.Match.Players {
-		if _, err = tx.Exec(ctx, insertMatchPlayer, q.Match.ID, player.Player.SteamID, player.Hero.ID, player.IsRadiant, player.Position); err != nil {
-			return questionID, fmt.Errorf("error inserting match player: %w", err)
-		}
 		if _, err = tx.Exec(ctx, insertPlayer, player.Player.SteamID, player.Player.IsPro, player.Player.Name, player.Player.ProName); err != nil {
 			return questionID, fmt.Errorf("error inserting player: %w", err)
 		}
+		if _, err = tx.Exec(ctx, insertMatchPlayer, q.Match.ID, player.Player.SteamID, player.Hero.ID, player.IsRadiant, player.Position); err != nil {
+			return questionID, fmt.Errorf("error inserting match player: %w", err)
+		}
 		for order, item := range player.Items {
+			if item.ID == 0 {
+				continue
+			}
 			if _, err = tx.Exec(ctx, insertItem, player.Player.SteamID, q.Match.ID, item.ID, order); err != nil {
 				return questionID, fmt.Errorf("error inserting item: %w", err)
 			}
