@@ -14,6 +14,7 @@ import (
 	"github.com/akionka/akionkabot/internal/postgres"
 	"github.com/akionka/akionkabot/internal/s3"
 	"github.com/akionka/akionkabot/internal/service"
+	"github.com/akionka/akionkabot/internal/stratz"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
@@ -59,6 +60,7 @@ func main() {
 	defer pool.Close()
 
 	botToken := os.Getenv("BOT_TOKEN")
+	stratzToken := os.Getenv("STRATZ_TOKEN")
 
 	bot, err := telego.NewBot(botToken, telego.WithLogger(logger))
 	if err != nil {
@@ -67,6 +69,7 @@ func main() {
 	}
 
 	d2ptClient := d2pt.NewClient(&http.Client{})
+	stratzClient := stratz.NewClient(&http.Client{}, stratzToken)
 
 	endpoint := "localhost:9000"
 	accessKeyID := "akionka"
@@ -89,7 +92,7 @@ func main() {
 	heroImageFetcher := s3.NewHeroImageFetcher(minioClient, c)
 	itemImageFetcher := s3.NewItemImageFetcher(minioClient, c)
 
-	questionService := service.NewQuestionService(questionRepo, d2ptClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
+	questionService := service.NewQuestionService(questionRepo, d2ptClient, stratzClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
 	userService := service.NewUserService(userRepo)
 
 	collager := NewDefaultCollager(c)

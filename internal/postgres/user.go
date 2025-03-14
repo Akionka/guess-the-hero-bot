@@ -69,7 +69,8 @@ func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (uuid.UU
 		username = EXCLUDED.username,
 		first_name = EXCLUDED.first_name,
 		last_name = EXCLUDED.last_name
-		RETURNING user_id`
+		RETURNING user_id
+	`
 
 	r.logger.DebugContext(ctx, "saving user", slog.Any("user", user))
 	rows, err := r.db.Query(

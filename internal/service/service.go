@@ -7,6 +7,7 @@ import (
 	"github.com/akionka/akionkabot/internal/data"
 	"github.com/akionka/akionkabot/internal/postgres"
 	"github.com/akionka/akionkabot/internal/s3"
+	"github.com/akionka/akionkabot/internal/stratz"
 
 	"github.com/google/uuid"
 )
@@ -53,6 +54,12 @@ type QuestionFetcher interface {
 }
 
 var _ QuestionFetcher = (*d2pt.Client)(nil)
+
+type MatchFetcher interface {
+	GetMatchByID(ctx context.Context, id int64) (*data.Match, error)
+}
+
+var _ MatchFetcher = (*stratz.Client)(nil)
 
 type ImageFetcher interface {
 	FetchImage(ctx context.Context, shortName string) (data.Image, error)

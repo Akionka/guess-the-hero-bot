@@ -14,16 +14,18 @@ import (
 type QuestionService struct {
 	repo             QuestionRepository
 	questionFetcher  QuestionFetcher
+	matchFetcher     MatchFetcher
 	heroRepo         HeroProvider
 	itemRepo         ItemProvider
 	heroImageFetcher ImageFetcher
 	itemImageFetcher ImageFetcher
 }
 
-func NewQuestionService(repo QuestionRepository, questionFetcher QuestionFetcher, heroRepo HeroProvider, itemRepo ItemProvider, heroImageFetcher ImageFetcher, itemImageFetcher ImageFetcher) *QuestionService {
+func NewQuestionService(repo QuestionRepository, questionFetcher QuestionFetcher, matchFetcher MatchFetcher, heroRepo HeroProvider, itemRepo ItemProvider, heroImageFetcher ImageFetcher, itemImageFetcher ImageFetcher) *QuestionService {
 	return &QuestionService{
 		repo:             repo,
 		questionFetcher:  questionFetcher,
+		matchFetcher:     matchFetcher,
 		heroRepo:         heroRepo,
 		itemRepo:         itemRepo,
 		heroImageFetcher: heroImageFetcher,
@@ -56,6 +58,14 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 		question = s.convertQuestionResponse(qr)
 		question.ID = uuid.Must(uuid.NewV7())
 		question.CreatedAt = time.Now()
+
+		match, err := s.matchFetcher.GetMatchByID(ctx, question.Match.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		match.AvgMMR = question.Match.AvgMMR
+		question.Match = *match
 
 		questionID, err := s.repo.SaveQuestion(ctx, question)
 		if err != nil {
