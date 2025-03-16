@@ -356,6 +356,7 @@ func (r *QuestionRepository) AnswerQuestion(ctx context.Context, userID uuid.UUI
 
 	slog.DebugContext(ctx, "saving user's answer", slog.String("user_uuid", userID.String()), slog.Any("question", question), slog.Any("answer", answer))
 	if err := r.db.QueryRow(ctx, sql, answer.ID, userID, question.ID, answer.Hero.ID, answer.AnsweredAt).Scan(&userQuestionID); err != nil {
+		err = pgErrToDomain(err)
 		return fmt.Errorf("error inserting user's answer: %w", err)
 	}
 
