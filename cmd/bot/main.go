@@ -113,6 +113,7 @@ func main() {
 
 	questionService := service.NewQuestionService(questionRepo, d2ptClient, stratzClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
 	userService := service.NewUserService(userRepo)
+	playerService := service.NewPlayerService(stratzClient)
 
 	collager := NewDefaultCollager(c)
 
@@ -122,6 +123,7 @@ func main() {
 		collager,
 		questionService,
 		userService,
+		playerService,
 	)
 
 	go func() {

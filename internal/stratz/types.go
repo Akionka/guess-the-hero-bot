@@ -104,16 +104,16 @@ func (m Match) toDomain() data.Match {
 }
 
 type MatchPlayer struct {
-	Hero         Hero     `json:"hero"`
-	Item0Id      int      `json:"item0Id"`
-	Item1Id      int      `json:"item1Id"`
-	Item2Id      int      `json:"item2Id"`
-	Item3Id      int      `json:"item3Id"`
-	Item4Id      int      `json:"item4Id"`
-	Item5Id      int      `json:"item5Id"`
-	IsRadiant    bool     `json:"isRadiant"`
-	Position     Position `json:"position"`
-	SteamAccount Player   `json:"steamAccount"`
+	Hero         Hero         `json:"hero"`
+	Item0Id      int          `json:"item0Id"`
+	Item1Id      int          `json:"item1Id"`
+	Item2Id      int          `json:"item2Id"`
+	Item3Id      int          `json:"item3Id"`
+	Item4Id      int          `json:"item4Id"`
+	Item5Id      int          `json:"item5Id"`
+	IsRadiant    bool         `json:"isRadiant"`
+	Position     Position     `json:"position"`
+	SteamAccount SteamAccount `json:"steamAccount"`
 }
 
 func (mp MatchPlayer) toDomain() data.MatchPlayer {
@@ -141,24 +141,28 @@ func (h Hero) toDomain() data.Hero {
 	}
 }
 
-type Player struct {
-	ID              int64      `json:"id"`
-	Name            string     `json:"name"`
-	ProSteamAccount *ProPlayer `json:"proSteamAccount"`
+type SteamAccount struct {
+	ID              int64            `json:"id"`
+	Name            string           `json:"name"`
+	ProSteamAccount *ProSteamAccount `json:"proSteamAccount"`
 }
 
-func (p Player) toDomain() data.Player {
+func (a SteamAccount) toDomain() data.Player {
 	dp := data.Player{
-		SteamID: p.ID,
-		Name:    p.Name,
-		IsPro:   p.ProSteamAccount != nil,
+		SteamID: a.ID,
+		Name:    a.Name,
+		IsPro:   a.ProSteamAccount != nil,
 	}
 	if dp.IsPro {
-		dp.ProName = p.ProSteamAccount.Name
+		dp.ProName = a.ProSteamAccount.Name
 	}
 	return dp
 }
 
-type ProPlayer struct {
+type ProSteamAccount struct {
 	Name string `json:"name"`
+}
+
+type Player struct {
+	SteamAccount SteamAccount `json:"steamAccount"`
 }

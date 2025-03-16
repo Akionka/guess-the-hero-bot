@@ -49,6 +49,10 @@ type UserRepository interface {
 
 var _ UserRepository = (*postgres.UserRepository)(nil)
 
+type PlayerProvider interface {
+	GetPlayerByID(ctx context.Context, id int64) (*data.Player, error)
+}
+
 type QuestionFetcher interface {
 	FetchQuestion(ctx context.Context, isWon bool) (*d2pt.QuestionResponse, error)
 }
