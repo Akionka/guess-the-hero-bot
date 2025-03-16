@@ -24,6 +24,8 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 
 	_ "net/http/pprof"
+
+	vault "github.com/hashicorp/vault/api"
 )
 
 func main() {
@@ -47,7 +49,27 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
+	vaultConfig := vault.DefaultConfig()
+	vaultConfig.Address = "http://127.0.0.1:8200"
+
+	vaultClient, err := vault.NewClient(vaultConfig)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
+	vaultClient.SetToken(os.Getenv("VAULT_TOKEN"))
+
+	secret, err := vaultClient.KVv2("akionka-bot").Get(ctx, "config")
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+	dbURL := secret.Data["DATABASE_URL"].(string)
+	botToken := secret.Data["BOT_TOKEN"].(string)
+	stratzToken := secret.Data["STRATZ_TOKEN"].(string)
+
+	cfg, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
@@ -58,9 +80,6 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-
-	botToken := os.Getenv("BOT_TOKEN")
-	stratzToken := os.Getenv("STRATZ_TOKEN")
 
 	bot, err := telego.NewBot(botToken, telego.WithLogger(logger))
 	if err != nil {

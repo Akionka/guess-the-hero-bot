@@ -14,6 +14,7 @@ services:
     depends_on:
       - db
       - s3
+      - vault
 
   db:
     image: postgres:17.4
@@ -40,6 +41,21 @@ services:
     volumes:
       - s3data:/data
 
+  vault:
+    image: hashicorp/vault:1.19
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_LOCAL_CONFIG: '{"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h", "ui": true}'
+    volumes:
+      - vauldata:/vault/file
+    command: server
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+
 volumes:
   pgdata:
   s3data:
+  vaultdata:
