@@ -68,9 +68,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	d2ptClient := d2pt.NewClient(&http.Client{})
-	stratzClient := stratz.NewClient(&http.Client{}, stratzToken)
-
 	endpoint := "localhost:9000"
 	accessKeyID := "akionka"
 	secretAccessKey := "password"
@@ -91,6 +88,9 @@ func main() {
 	userRepo := cache.NewUserRepository(postgres.NewUserRepository(pool, logger.Logger), c)
 	heroImageFetcher := s3.NewHeroImageFetcher(minioClient, c)
 	itemImageFetcher := s3.NewItemImageFetcher(minioClient, c)
+
+	d2ptClient := d2pt.NewClient(&http.Client{})
+	stratzClient := cache.NewCachedStratzClient(stratz.NewClient(&http.Client{}, stratzToken), c)
 
 	questionService := service.NewQuestionService(questionRepo, d2ptClient, stratzClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
 	userService := service.NewUserService(userRepo)
