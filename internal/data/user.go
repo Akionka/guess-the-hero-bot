@@ -17,6 +17,7 @@ type User struct {
 	FirstName  string    `db:"first_name"`
 	LastName   string    `db:"last_name"`
 	CreatedAt  time.Time `db:"created_at"`
+	SteamAcc    *Player   `db:"-"`
 }
 
 func (u *User) LogValue() slog.Value {
@@ -24,6 +25,7 @@ func (u *User) LogValue() slog.Value {
 		slog.String("uuid", u.ID.String()),
 		slog.Int64("telegram_id", u.TelegramID),
 		slog.String("telegram_username", u.Username),
+		slog.Any("steam", u.SteamAcc),
 	)
 }
 
@@ -45,10 +47,18 @@ func (u *User) MarshalBinary() (data []byte, err error) {
 	binary.Write(buf, order, uint8(len(b)))
 	binary.Write(buf, order, b)
 
+	if u.SteamAcc == nil {
+		binary.Write(buf, order, uint32(0))
+	} else {
+		b, _ = u.SteamAcc.MarshalBinary()
+		binary.Write(buf, order, uint32(len(b)))
+		binary.Write(buf, order, b)
+	}
+
 	return buf.Bytes(), nil
 }
 
-func (u *User) UnmarshalBinary(data []byte) (err error) {
+func (u *User) UnmarshalBinary(data []byte) error {
 	order := binary.LittleEndian
 
 	r := bytes.NewReader(data)
@@ -64,6 +74,14 @@ func (u *User) UnmarshalBinary(data []byte) (err error) {
 	timeBytes := make([]byte, timeLen)
 	r.Read(timeBytes)
 	u.CreatedAt.UnmarshalBinary(timeBytes)
+
+	var steamAccLen uint32
+	binary.Read(r, order, &steamAccLen)
+	if steamAccLen != 0 {
+		steamAccBytes := make([]byte, steamAccLen)
+		r.Read(steamAccBytes)
+		u.SteamAcc.UnmarshalBinary(steamAccBytes)
+	}
 
 	return nil
 }
