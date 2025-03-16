@@ -23,10 +23,10 @@ func NewUserRepository(repo *postgres.UserRepository, cache *cache.Cache) *UserR
 }
 
 func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*data.User, error) {
-	userKey := fmt.Sprintf("user_%s", id)
+	key := userKey(id)
 	user := &data.User{}
 
-	v, found := r.cache.Get(userKey)
+	v, found := r.cache.Get(key)
 	if found {
 		user = v.(*data.User)
 		return user, nil
@@ -34,19 +34,19 @@ func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*data.User,
 
 	user, err := r.repo.GetUser(ctx, id)
 	if err != nil {
-		return nil, err
+		return user, err
 	}
 
-	r.cache.Set(userKey, user, cache.DefaultExpiration)
+	r.cache.Set(key, user, cache.DefaultExpiration)
 
 	return user, nil
 }
 
 func (r *UserRepository) GetUserByTelegramID(ctx context.Context, id int64) (*data.User, error) {
-	userKey := fmt.Sprintf("user_%d", id)
+	key := userTgKey(id)
 	user := &data.User{}
 
-	v, found := r.cache.Get(userKey)
+	v, found := r.cache.Get(key)
 	if found {
 		user = v.(*data.User)
 		return user, nil
@@ -54,18 +54,18 @@ func (r *UserRepository) GetUserByTelegramID(ctx context.Context, id int64) (*da
 
 	user, err := r.repo.GetUserByTelegramID(ctx, id)
 	if err != nil {
-		return nil, err
+		return user, err
 	}
 
-	r.cache.Set(userKey, user, cache.DefaultExpiration)
+	r.cache.Set(key, user, cache.DefaultExpiration)
 
 	return user, nil
 
 }
 
 func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (uuid.UUID, error) {
-	userKeyID := fmt.Sprintf("user_%s", user.ID)
-	userKeyTelegramID := fmt.Sprintf("user_%d", user.TelegramID)
+	userKeyID := userKey(user.ID)
+	userKeyTelegramID := userTgKey(user.TelegramID)
 
 	r.cache.Delete(userKeyID)
 	r.cache.Delete(userKeyTelegramID)
@@ -76,4 +76,12 @@ func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (uuid.UU
 	}
 
 	return userID, nil
+}
+
+func userKey(id uuid.UUID) string {
+	return fmt.Sprintf("user_%s", id)
+}
+
+func userTgKey(id int64) string {
+	return fmt.Sprintf("user_%d", id)
 }
