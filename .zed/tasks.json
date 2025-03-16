@@ -1,0 +1,11 @@
+[
+  {
+    "label": "Run AkionkaBot",
+    "command": "go run ./cmd/bot",
+    "allow_concurrent_runs": false,
+    "shell": "system",
+    "env": {
+      "VAULT_TOKEN": "hvs.HfqwfP2NqtocZMtaPRaz0ijt"
+    }
+  }
+]

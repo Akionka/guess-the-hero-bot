@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Templ Generate",
+            "command": "templ generate",
+            "type": "shell",
+            "args": [],
+            "problemMatcher": [
+                "$go"
+            ],
+            "group": "build"
+        }
+    ]
+}
