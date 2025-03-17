@@ -9,7 +9,7 @@ import (
 )
 
 type PlayerQueryData struct {
-	Player Player `json:"player"`
+	Player *Player `json:"player"`
 }
 
 func (c *Client) GetPlayerByID(ctx context.Context, steamID int64) (*data.SteamAccount, error) {
@@ -17,12 +17,12 @@ func (c *Client) GetPlayerByID(ctx context.Context, steamID int64) (*data.SteamA
 		{
 			player (steamAccountId: %d) {
 				steamAccount {
-				id
-				name
-				proSteamAccount {
-					isPro
+					id
 					name
-				}
+					proSteamAccount {
+						isPro
+						name
+					}
 				}
 			}
 		}`, steamID))
@@ -42,6 +42,10 @@ func (c *Client) GetPlayerByID(ctx context.Context, steamID int64) (*data.SteamA
 
 	if qr.Data == nil {
 		return nil, fmt.Errorf("no data in response")
+	}
+
+	if qr.Data.Player.SteamAccount == nil {
+		return nil, data.ErrNotFound
 	}
 
 	p := qr.Data.Player.SteamAccount.toDomain()

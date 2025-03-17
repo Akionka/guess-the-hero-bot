@@ -164,5 +164,5 @@ type ProSteamAccount struct {
 }
 
 type Player struct {
-	SteamAccount SteamAccount `json:"steamAccount"`
+	SteamAccount *SteamAccount `json:"steamAccount"`
 }
