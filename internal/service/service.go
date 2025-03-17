@@ -50,7 +50,7 @@ type UserRepository interface {
 var _ UserRepository = (*postgres.UserRepository)(nil)
 
 type PlayerProvider interface {
-	GetPlayerByID(ctx context.Context, id int64) (*data.Player, error)
+	GetPlayerByID(ctx context.Context, id int64) (*data.SteamAccount, error)
 }
 
 type QuestionFetcher interface {

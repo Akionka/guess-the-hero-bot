@@ -66,9 +66,9 @@ func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (uuid.UU
 		($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (telegram_id)
 		DO UPDATE SET
-		username = EXCLUDED.username,
-		first_name = EXCLUDED.first_name,
-		last_name = EXCLUDED.last_name
+			username = EXCLUDED.username,
+			first_name = EXCLUDED.first_name,
+			last_name = EXCLUDED.last_name
 		RETURNING user_id
 	`
 

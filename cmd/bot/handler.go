@@ -415,8 +415,8 @@ func (b *Bot) questionText(ctx *th.Context, question *data.Question, userAnswer 
 		answerTempl(userAnswer.Hero, correctOption.Hero, question.Player.Position, question.Match.RadiantWon == question.Player.IsRadiant).Render(ctx, &buf)
 		buf.WriteRune('\n')
 
-		proName := question.Player.Player.ProName
-		matchCredentials(correctOption.Hero.DisplayName, question.Match.ID, question.Player.Player.SteamID, proName).Render(ctx, &buf)
+		proName := question.Player.SteamAccount.ProName
+		matchCredentials(correctOption.Hero.DisplayName, question.Match.ID, question.Player.SteamAccount.SteamID, proName).Render(ctx, &buf)
 	}
 
 	return buf.String(), nil

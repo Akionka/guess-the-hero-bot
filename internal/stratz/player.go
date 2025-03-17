@@ -12,7 +12,7 @@ type PlayerQueryData struct {
 	Player Player `json:"player"`
 }
 
-func (c *Client) GetPlayerByID(ctx context.Context, steamID int64) (*data.Player, error) {
+func (c *Client) GetPlayerByID(ctx context.Context, steamID int64) (*data.SteamAccount, error) {
 	body, err := c.query(context.Background(), fmt.Sprintf(`
 		{
 			player (steamAccountId: %d) {

@@ -239,7 +239,7 @@ func (r *QuestionRepository) scanQuestionFromRows(rows pgx.Rows) (*data.Question
 
 		if q.PPlayerSteamID != nil && playerMap[*q.PPlayerSteamID] == nil {
 			player := data.MatchPlayer{
-				Player: data.Player{
+				SteamAccount: data.SteamAccount{
 					SteamID: *q.PPlayerSteamID,
 					Name:    *q.PName,
 					IsPro:   *q.PIsPro,
@@ -258,7 +258,7 @@ func (r *QuestionRepository) scanQuestionFromRows(rows pgx.Rows) (*data.Question
 			playerMap[*q.PPlayerSteamID] = &player
 			question.Match.Players = append(question.Match.Players, player)
 
-			if player.Player.SteamID == q.QPlayerSteamID {
+			if player.SteamAccount.SteamID == q.QPlayerSteamID {
 				question.Player = &player
 			}
 		}
@@ -318,23 +318,23 @@ func (r *QuestionRepository) SaveQuestion(ctx context.Context, q *data.Question)
 	}
 
 	for _, player := range q.Match.Players {
-		if _, err = tx.Exec(ctx, insertPlayer, player.Player.SteamID, player.Player.IsPro, player.Player.Name, player.Player.ProName); err != nil {
+		if _, err = tx.Exec(ctx, insertPlayer, player.SteamAccount.SteamID, player.SteamAccount.IsPro, player.SteamAccount.Name, player.SteamAccount.ProName); err != nil {
 			return questionID, fmt.Errorf("error inserting player: %w", err)
 		}
-		if _, err = tx.Exec(ctx, insertMatchPlayer, q.Match.ID, player.Player.SteamID, player.Hero.ID, player.IsRadiant, player.Position); err != nil {
+		if _, err = tx.Exec(ctx, insertMatchPlayer, q.Match.ID, player.SteamAccount.SteamID, player.Hero.ID, player.IsRadiant, player.Position); err != nil {
 			return questionID, fmt.Errorf("error inserting match player: %w", err)
 		}
 		for order, item := range player.Items {
 			if item.ID == 0 {
 				continue
 			}
-			if _, err = tx.Exec(ctx, insertItem, player.Player.SteamID, q.Match.ID, item.ID, order); err != nil {
+			if _, err = tx.Exec(ctx, insertItem, player.SteamAccount.SteamID, q.Match.ID, item.ID, order); err != nil {
 				return questionID, fmt.Errorf("error inserting item: %w", err)
 			}
 		}
 	}
 
-	if err = tx.QueryRow(ctx, insertQuestion, q.ID, q.Match.ID, q.Player.Player.SteamID, q.CreatedAt, q.TelegramFileID).Scan(&questionID); err != nil {
+	if err = tx.QueryRow(ctx, insertQuestion, q.ID, q.Match.ID, q.Player.SteamAccount.SteamID, q.CreatedAt, q.TelegramFileID).Scan(&questionID); err != nil {
 		err = pgErrToDomain(err)
 		return questionID, fmt.Errorf("error inserting question: %w", err)
 	}

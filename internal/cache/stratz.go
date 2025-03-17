@@ -45,20 +45,20 @@ func (c StratzClient) GetMatchByID(ctx context.Context, matchID int64) (*data.Ma
 	return m, err
 }
 
-func (c StratzClient) GetPlayerByID(ctx context.Context, steamID int64) (*data.Player, error) {
+func (c StratzClient) GetPlayerByID(ctx context.Context, steamID int64) (*data.SteamAccount, error) {
 	key := playerKey(steamID)
 
 	v, found := c.cache.Get(key)
 	if found {
-		return v.(*data.Player), nil
+		return v.(*data.SteamAccount), nil
 	}
 
 	v, err, _ := c.g.Do(key, func() (any, error) {
 		return c.client.GetPlayerByID(ctx, steamID)
 	})
-	p := v.(*data.Player)
+	p := v.(*data.SteamAccount)
 	if err != nil {
-		return v.(*data.Player), err
+		return v.(*data.SteamAccount), err
 	}
 
 	c.cache.Set(key, p, cache.DefaultExpiration)

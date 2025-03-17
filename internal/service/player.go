@@ -16,6 +16,6 @@ func NewPlayerService(provider PlayerProvider) *PlayerService {
 	}
 }
 
-func (s *PlayerService) GetPlayerByID(ctx context.Context, id int64) (*data.Player, error) {
+func (s *PlayerService) GetPlayerByID(ctx context.Context, id int64) (*data.SteamAccount, error) {
 	return s.provider.GetPlayerByID(ctx, id)
 }

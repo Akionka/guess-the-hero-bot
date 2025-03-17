@@ -53,7 +53,7 @@ type QuestionResponse struct {
 	ID              int     `json:"id"`
 	MatchID         int64   `json:"match_id"`
 	HeroID          int     `json:"hero_id"`
-	AccountID       int64   `json:"account_id"`
+	SteamID         int64   `json:"account_id"`
 	IsPro           IntBool `json:"is_pro"`
 	Name            string  `json:"name"`
 	Pos             string  `json:"pos"`

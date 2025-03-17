@@ -148,8 +148,8 @@ func (s *QuestionService) convertQuestionResponse(qr *d2pt.QuestionResponse) *da
 			AvgMMR: &qr.MMR,
 		},
 		Player: &data.MatchPlayer{
-			Player: data.Player{
-				SteamID: qr.AccountID,
+			SteamAccount: data.SteamAccount{
+				SteamID: qr.SteamID,
 			},
 		},
 		Options: options,

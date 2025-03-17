@@ -119,11 +119,11 @@ type MatchPlayer struct {
 func (mp MatchPlayer) toDomain() data.MatchPlayer {
 	items := []data.Item{{ID: mp.Item0Id}, {ID: mp.Item1Id}, {ID: mp.Item2Id}, {ID: mp.Item3Id}, {ID: mp.Item4Id}, {ID: mp.Item5Id}}
 	return data.MatchPlayer{
-		Player:    mp.SteamAccount.toDomain(),
-		Hero:      mp.Hero.toDomain(),
-		IsRadiant: mp.IsRadiant,
-		Position:  mp.Position.toDomain(),
-		Items:     items,
+		SteamAccount: mp.SteamAccount.toDomain(),
+		Hero:         mp.Hero.toDomain(),
+		IsRadiant:    mp.IsRadiant,
+		Position:     mp.Position.toDomain(),
+		Items:        items,
 	}
 }
 
@@ -147,16 +147,16 @@ type SteamAccount struct {
 	ProSteamAccount *ProSteamAccount `json:"proSteamAccount"`
 }
 
-func (a SteamAccount) toDomain() data.Player {
-	dp := data.Player{
+func (a SteamAccount) toDomain() data.SteamAccount {
+	da := data.SteamAccount{
 		SteamID: a.ID,
 		Name:    a.Name,
 		IsPro:   a.ProSteamAccount != nil,
 	}
-	if dp.IsPro {
-		dp.ProName = a.ProSteamAccount.Name
+	if da.IsPro {
+		da.ProName = a.ProSteamAccount.Name
 	}
-	return dp
+	return da
 }
 
 type ProSteamAccount struct {
