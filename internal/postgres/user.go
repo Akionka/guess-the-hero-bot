@@ -59,7 +59,7 @@ func (r *UserRepository) GetUserByTelegramID(ctx context.Context, id int64) (*da
 	return user, nil
 }
 
-func (r *UserRepository) SaveUser(ctx context.Context, user *data.User) (uuid.UUID, error) {
+func (r *UserRepository) CreateUser(ctx context.Context, user *data.User) (uuid.UUID, error) {
 	const sql = `
 		INSERT INTO users
 		(user_id, telegram_id, username, first_name, last_name, created_at) VALUES

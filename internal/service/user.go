@@ -37,9 +37,9 @@ func (s *UserService) CreateUser(ctx context.Context, user *data.User) (*data.Us
 		LastName:   user.LastName,
 		CreatedAt:  time.Now(),
 	}
-	userID, err := s.repo.SaveUser(ctx, user)
+	userID, err := s.repo.CreateUser(ctx, user)
 	if err != nil {
-		return nil, fmt.Errorf("error saving user: %w", err)
+		return nil, fmt.Errorf("error creating user: %w", err)
 	}
 
 	user, err = s.repo.GetUser(ctx, userID)

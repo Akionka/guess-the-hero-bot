@@ -58,7 +58,7 @@ func (c StratzClient) GetPlayerByID(ctx context.Context, steamID int64) (*data.S
 	})
 	p := v.(*data.SteamAccount)
 	if err != nil {
-		return v.(*data.SteamAccount), err
+		return p, err
 	}
 
 	c.cache.Set(key, p, cache.DefaultExpiration)

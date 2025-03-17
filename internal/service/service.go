@@ -44,7 +44,7 @@ var _ QuestionRepository = (*postgres.QuestionRepository)(nil)
 type UserRepository interface {
 	GetUser(ctx context.Context, id uuid.UUID) (*data.User, error)
 	GetUserByTelegramID(ctx context.Context, id int64) (*data.User, error)
-	SaveUser(ctx context.Context, user *data.User) (uuid.UUID, error)
+	CreateUser(ctx context.Context, user *data.User) (uuid.UUID, error)
 }
 
 var _ UserRepository = (*postgres.UserRepository)(nil)
