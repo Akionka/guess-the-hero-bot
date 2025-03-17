@@ -50,6 +50,10 @@ func (b *Bot) Start(ctx context.Context) {
 
 	bh.HandleInlineQuery(b.handleQuestionShare, th.InlineQueryPrefix("question "))
 
+	bh.HandleMessage(b.handleCmdConnect, th.CommandEqual("connect"))
+	bh.HandleCallbackQuery(b.handleQueryConnectCancel, th.CallbackDataPrefix("connect_cancel"))
+	bh.HandleCallbackQuery(b.handleQueryConnect, th.CallbackDataPrefix("connect"))
+
 	go bh.Start()
 
 	<-ctx.Done()

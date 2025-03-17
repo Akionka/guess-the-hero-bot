@@ -49,3 +49,10 @@ func (s *UserService) CreateUser(ctx context.Context, user *data.User) (*data.Us
 
 	return user, nil
 }
+
+func (s *UserService) ConnectSteamAccount(ctx context.Context, id uuid.UUID, account *data.SteamAccount) error {
+	return s.repo.UpdateByID(ctx, id, func(user *data.User) (bool, error) {
+		user.SteamAcc = account
+		return true, nil
+	})
+}

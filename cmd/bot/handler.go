@@ -470,3 +470,125 @@ func (b *Bot) questionKeyboard(ctx *th.Context, question *data.Question) *telego
 func (b *Bot) shareQuestionButton(_ *th.Context, question *data.Question) telego.InlineKeyboardButton {
 	return tu.InlineKeyboardButton("Поделиться вопросом").WithSwitchInlineQuery("question " + question.ID.String())
 }
+
+func (b *Bot) handleCmdConnect(ctx *th.Context, message telego.Message) error {
+	const usage = "Использование: /connect <id>\n\nСвой ID можно узнать на dotabuff.com, stratz.com или в профиле Dota 2."
+	_, _, args := tu.ParseCommand(message.Text)
+
+	if len(args) < 1 {
+		_, err := ctx.Bot().SendMessage(ctx, tu.Message(message.Chat.ChatID(), usage))
+		return err
+	}
+
+	steamID, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil {
+		_, err := ctx.Bot().SendMessage(ctx, tu.Message(message.Chat.ChatID(), usage))
+		return err
+	}
+
+	user, ok := getCtxUser(ctx)
+	if !ok {
+		return errors.New("no user in context")
+	}
+
+	acc, err := b.playerService.GetPlayerByID(ctx, steamID)
+	if err != nil {
+		return err
+	}
+
+	ctx.Bot().SendMessage(ctx, tu.Messagef(
+		message.Chat.ChatID(),
+		"Подключаем?\n\nSteamID: %d\nИмя: %s",
+		acc.SteamID, acc.Name,
+	).
+		WithReplyMarkup(tu.InlineKeyboard(
+			tu.InlineKeyboardRow(
+				tu.InlineKeyboardButton("Да").WithCallbackData(fmt.Sprintf("connect_%d_%d", user.TelegramID, acc.SteamID)),
+				tu.InlineKeyboardButton("Нет").WithCallbackData(fmt.Sprintf("connect_cancel_%d", user.TelegramID)),
+			),
+		)),
+	)
+
+	return err
+}
+
+func (b *Bot) handleQueryConnectCancel(ctx *th.Context, query telego.CallbackQuery) error {
+	idStr, found := strings.CutPrefix(query.Data, "connect_cancel_")
+	if !found {
+		return errors.New("could not cut prefix for connect cancel")
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 0)
+	if err != nil {
+		return fmt.Errorf("failed to parse id: %w", err)
+	}
+
+	user, ok := getCtxUser(ctx)
+	if !ok {
+		return errors.New("no user in context")
+	}
+
+	if user.TelegramID != id {
+		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(
+			query.ID,
+		).WithText("не для тебя"))
+	}
+
+	chatID := tu.ID(query.Message.GetChat().ID)
+	msgID := query.Message.GetMessageID()
+
+	_, err = ctx.Bot().EditMessageText(ctx, tu.EditMessageText(chatID, msgID, "Подключение отменено"))
+	return err
+}
+
+func (b *Bot) handleQueryConnect(ctx *th.Context, query telego.CallbackQuery) error {
+	data, found := strings.CutPrefix(query.Data, "connect_")
+	if !found {
+		return errors.New("could not cut prefix for connect")
+	}
+
+	strs := strings.SplitN(data, "_", 2)
+	if len(strs) != 2 {
+		return fmt.Errorf("not enough arguments for connect got %d, expected %d", len(strs), 2)
+	}
+
+	idStr, steamIDStr := strs[0], strs[1]
+	id, err := strconv.ParseInt(idStr, 10, 0)
+	if err != nil {
+		return fmt.Errorf("failed to parse id: %w", err)
+	}
+	steamID, err := strconv.ParseInt(steamIDStr, 10, 0)
+	if err != nil {
+		return fmt.Errorf("failed to parse steam id: %w", err)
+	}
+
+	user, ok := getCtxUser(ctx)
+	if !ok {
+		return errors.New("no user in context")
+	}
+
+	if user.TelegramID != id {
+		return ctx.Bot().AnswerCallbackQuery(ctx, tu.CallbackQuery(
+			query.ID,
+		).WithText("не для тебя"))
+	}
+
+	acc, err := b.playerService.GetPlayerByID(ctx, steamID)
+	if err != nil {
+		return fmt.Errorf("failed to get player account by id: %w", err)
+	}
+
+	chatID := tu.ID(query.Message.GetChat().ID)
+	msgID := query.Message.GetMessageID()
+
+	if err := b.userService.ConnectSteamAccount(ctx, user.ID, acc); err != nil {
+		_, err := ctx.Bot().EditMessageText(ctx, tu.EditMessageText(chatID, msgID, "Ошибка подключения.\n\nПовторим?").WithReplyMarkup(tu.InlineKeyboard(
+			tu.InlineKeyboardRow(tu.InlineKeyboardButton("Повторить попытку").WithCallbackData(fmt.Sprintf("connect_%d_%d", user.TelegramID, acc.SteamID))),
+		)))
+		return err
+	}
+
+	_, err = ctx.Bot().EditMessageText(ctx, tu.EditMessageText(chatID, msgID, "Подключено"))
+
+	return err
+}
