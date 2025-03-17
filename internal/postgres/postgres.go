@@ -3,32 +3,27 @@ package postgres
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/akionka/akionkabot/internal/data"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func transaction(ctx context.Context, tx pgx.Tx, label string, f func() error) error {
-	if err := f(); err != nil {
-		_ = tx.Rollback(ctx)
-
-		if errors.Is(err, pgx.ErrNoRows) {
-			return data.ErrNotFound
-		}
-
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return data.ErrAlreadyExists
-		}
-
-		return fmt.Errorf("failed to perform transaction %s: %w", label, err)
+func runInTx(ctx context.Context, db *pgxpool.Pool, fn func(pgx.Tx) error) (err error) {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction %s: %w", label, err)
-	}
+	defer func() {
+		if err != nil {
+			rbErr := tx.Rollback(ctx)
+			if rbErr != nil {
+				err = errors.Join(rbErr, err)
+			}
+			return
+		}
+		err = tx.Commit(ctx)
+	}()
 
-	return nil
+	return fn(tx)
 }

@@ -78,6 +78,21 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *data.User) (uuid.
 	return userID, nil
 }
 
+func (r *UserRepository) UpdateByID(ctx context.Context, id uuid.UUID, updateFn func(user *data.User) (bool, error)) error {
+	userKeyID := userKey(id)
+
+	v, found := r.cache.Get(userKeyID)
+	if found {
+		user := v.(*data.User)
+		userTgIDKey := userTgKey(user.TelegramID)
+		r.cache.Delete(userTgIDKey)
+	}
+
+	r.cache.Delete(userKeyID)
+
+	return r.repo.UpdateByID(ctx, id, updateFn)
+}
+
 func userKey(id uuid.UUID) string {
 	return fmt.Sprintf("user_%s", id)
 }
