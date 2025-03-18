@@ -3,69 +3,107 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/akionka/akionkabot/internal/d2pt"
 	"github.com/akionka/akionkabot/internal/data"
-
 	"github.com/google/uuid"
 )
 
 type QuestionService struct {
 	repo             QuestionRepository
-	questionFetcher  QuestionFetcher
-	matchFetcher     MatchFetcher
+	matchRepo        MatchRepository
+	steamAccountRepo SteamAccountRepository
+	questionProvider QuestionProvider
+	matchProvider    MatchProvider
 	heroRepo         HeroProvider
 	itemRepo         ItemProvider
+	playerProvider   SteamAccountProvider
 	heroImageFetcher ImageFetcher
-	itemImageFetcher ImageFetcher
 }
 
-func NewQuestionService(repo QuestionRepository, questionFetcher QuestionFetcher, matchFetcher MatchFetcher, heroRepo HeroProvider, itemRepo ItemProvider, heroImageFetcher ImageFetcher, itemImageFetcher ImageFetcher) *QuestionService {
+func NewQuestionService(
+	repo QuestionRepository, matchRepo MatchRepository, steamAccountRepo SteamAccountRepository,
+	questionProvider QuestionProvider, matchProvider MatchProvider, heroRepo HeroProvider, itemRepo ItemProvider, playerProvider SteamAccountProvider,
+	heroImageFetcher ImageFetcher) *QuestionService {
 	return &QuestionService{
 		repo:             repo,
-		questionFetcher:  questionFetcher,
-		matchFetcher:     matchFetcher,
+		matchRepo:        matchRepo,
+		steamAccountRepo: steamAccountRepo,
+		questionProvider: questionProvider,
+		matchProvider:    matchProvider,
 		heroRepo:         heroRepo,
 		itemRepo:         itemRepo,
+		playerProvider:   playerProvider,
 		heroImageFetcher: heroImageFetcher,
-		itemImageFetcher: itemImageFetcher,
 	}
 }
 
-func (s *QuestionService) GetQuestion(ctx context.Context, id uuid.UUID) (*data.Question, error) {
+func (s *QuestionService) GetQuestion(ctx context.Context, id data.QuestionID) (*data.Question, error) {
 	question, err := s.repo.GetQuestion(ctx, id)
 	if err != nil {
 		return question, nil
 	}
 
-	return s.fetchQuestionImages(ctx, question)
+	return question, nil
 }
 
-func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UUID, isWon bool) (*data.Question, error) {
+// TODO: add saving all info about match gotten from stratz api
+func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID data.UserID, isWon bool) (*data.Question, error) {
 	question, err := s.repo.GetQuestionAvailableForUser(ctx, userID, isWon)
 	if err == nil {
-		return s.fetchQuestionImages(ctx, question)
+		return s.fetchImages(ctx, question)
 	}
 	var errs error
 
 	for range 4 {
-		qr, err := s.questionFetcher.FetchQuestion(ctx, isWon)
+		// Fetches question from D2PT API
+		qr, err := s.questionProvider.FetchQuestion(ctx, isWon)
 		if err != nil {
 			return nil, err
 		}
 
 		question = s.convertQuestionResponse(qr)
-		question.ID = uuid.Must(uuid.NewV7())
+		question.ID = data.QuestionID(uuid.Must(uuid.NewV7()))
 		question.CreatedAt = time.Now()
 
-		match, err := s.matchFetcher.GetMatchByID(ctx, question.Match.ID)
+		// Fetches match info from Stratz API
+		match, err := s.matchProvider.GetMatch(ctx, question.MatchID)
 		if err != nil {
 			return nil, err
 		}
 
-		match.AvgMMR = question.Match.AvgMMR
-		question.Match = *match
+		for i, player := range match.Players {
+			itemIDs := make([]data.ItemID, 0, 6)
+			for _, item := range player.Items {
+				if item.ID == 0 {
+					continue
+				}
+				itemIDs = append(itemIDs, item.ID)
+			}
+			items, err := s.itemRepo.GetItems(ctx, itemIDs)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get items %v: %w", items, err)
+			}
+			match.Players[i].Items = items
+		}
+
+		accounts, err := s.playerProvider.GetMatchSteamAccounts(ctx, question.MatchID)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, acc := range accounts {
+			s.steamAccountRepo.SaveAccount(ctx, &acc)
+		}
+
+		match.AvgMMR = &qr.MMR
+		question.MatchID, err = s.matchRepo.SaveMatch(ctx, match)
+		if err != nil {
+			errs = errors.Join(errs, err)
+			continue
+		}
 
 		questionID, err := s.repo.SaveQuestion(ctx, question)
 		if err != nil {
@@ -79,38 +117,39 @@ func (s *QuestionService) GetQuestionForUser(ctx context.Context, userID uuid.UU
 			continue
 		}
 
-		return s.fetchQuestionImages(ctx, question)
+		return s.fetchImages(ctx, question)
 	}
 
 	return nil, errs
 }
 
-func (s *QuestionService) GetUserAnswer(ctx context.Context, id uuid.UUID, userID uuid.UUID) (data.UserAnswer, error) {
+func (s *QuestionService) GetUserAnswer(ctx context.Context, id data.QuestionID, userID data.UserID) (*data.UserAnswer, error) {
 	return s.repo.GetUserAnswer(ctx, id, userID)
 }
 
-func (s *QuestionService) AnswerQuestion(ctx context.Context, user *data.User, question *data.Question, option data.Option) error {
+func (s *QuestionService) AnswerQuestion(ctx context.Context, id data.QuestionID, userID data.UserID, option data.Option) (data.UserAnswerID, error) {
 	answer := data.UserAnswer{
-		ID:         uuid.Must(uuid.NewV7()),
+		ID:         data.UserAnswerID(uuid.Must(uuid.NewV7())),
 		Option:     option,
 		AnsweredAt: time.Now(),
 	}
-	return s.repo.AnswerQuestion(ctx, user.ID, question, answer)
+	return s.repo.AnswerQuestion(ctx, id, userID, answer)
 }
 
-func (s *QuestionService) UpdateQuestionImage(ctx context.Context, id uuid.UUID, fileID string) error {
+func (s *QuestionService) UpdateQuestionImage(ctx context.Context, id data.QuestionID, fileID string) error {
 	return s.repo.UpdateQuestionImage(ctx, id, fileID)
 }
 
-func (s *QuestionService) UpdateOptionImage(ctx context.Context, id uuid.UUID, option data.Option, fileID string) error {
+func (s *QuestionService) UpdateOptionImage(ctx context.Context, id data.QuestionID, option data.Option, fileID string) error {
 	return s.repo.UpdateOptionImage(ctx, id, option, fileID)
 }
 
-func (s *QuestionService) GetQuestionStats(ctx context.Context, questionID uuid.UUID) (map[int]int, error) {
-	return s.repo.GetQuestionStats(ctx, questionID)
+func (s *QuestionService) GetQuestionStats(ctx context.Context, id data.QuestionID) (map[data.HeroID]int, error) {
+	return s.repo.GetQuestionStats(ctx, id)
 }
 
-func (s *QuestionService) fetchQuestionImages(ctx context.Context, question *data.Question) (*data.Question, error) {
+// Fetches images for heroes in the question options and updates the question with the fetched images.
+func (s *QuestionService) fetchImages(ctx context.Context, question *data.Question) (*data.Question, error) {
 	for i, option := range question.Options {
 		image, err := s.heroImageFetcher.FetchImage(ctx, option.Hero.ShortName)
 		if err != nil {
@@ -119,13 +158,6 @@ func (s *QuestionService) fetchQuestionImages(ctx context.Context, question *dat
 		question.Options[i].Hero.Image = image
 	}
 
-	for i, item := range question.Player.Items {
-		image, err := s.itemImageFetcher.FetchImage(ctx, item.ShortName)
-		if err != nil {
-			return nil, err
-		}
-		question.Player.Items[i].Image = image
-	}
 	return question, nil
 }
 
@@ -134,24 +166,17 @@ func (s *QuestionService) convertQuestionResponse(qr *d2pt.QuestionResponse) *da
 	for _, option := range qr.WrongOptions {
 		options = append(options, data.Option{
 			IsCorrect: false,
-			Hero:      data.Hero{ID: option},
+			Hero:      data.Hero{ID: data.HeroID(option)},
 		})
 	}
 	options = append(options, data.Option{
 		IsCorrect: true,
-		Hero:      data.Hero{ID: qr.HeroID},
+		Hero:      data.Hero{ID: data.HeroID(qr.HeroID)},
 	})
 
 	return &data.Question{
-		Match: data.Match{
-			ID:     qr.MatchID,
-			AvgMMR: &qr.MMR,
-		},
-		Player: &data.MatchPlayer{
-			SteamAccount: data.SteamAccount{
-				SteamID: qr.SteamID,
-			},
-		},
-		Options: options,
+		MatchID:  data.MatchID(qr.MatchID),
+		PlayerID: data.SteamID(qr.SteamID),
+		Options:  options,
 	}
 }

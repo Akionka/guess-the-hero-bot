@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"net/http"
 )
 
@@ -31,7 +31,7 @@ type queryResponse[T any] struct {
 	Data  *T    `json:"data"`
 }
 
-func (c *Client) query(ctx context.Context, query string) (io.ReadCloser, error) {
+func query[T any](ctx context.Context, c *Client, query string) (*T, error) {
 	var buf bytes.Buffer
 
 	if err := json.NewEncoder(&buf).Encode(queryRequest{
@@ -52,9 +52,24 @@ func (c *Client) query(ctx context.Context, query string) (io.ReadCloser, error)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("graphql query failed: %w", err)
 	}
-	return resp.Body, err
+	defer resp.Body.Close()
+
+	var qr queryResponse[T]
+	if err = json.NewDecoder(resp.Body).Decode(&qr); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if qr.Error != nil {
+		return nil, fmt.Errorf("graphql error: %s", qr.Error)
+	}
+
+	if qr.Data == nil {
+		return nil, fmt.Errorf("no data in response")
+	}
+
+	return qr.Data, err
 }
 
 type QueryError struct {

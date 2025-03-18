@@ -104,6 +104,8 @@ func main() {
 	questionRepo := postgres.NewQuestionRepository(pool, logger.Logger)
 	heroRepo := postgres.NewHeroRepository(pool, logger.Logger)
 	itemRepo := postgres.NewItemRepository(pool, logger.Logger)
+	matchRepo := postgres.NewMatchRepository(pool, logger.Logger)
+	steamAccountRepo := postgres.NewSteamAccountRepository(pool, logger.Logger)
 	userRepo := cache.NewUserRepository(postgres.NewUserRepository(pool, logger.Logger), c)
 	heroImageFetcher := s3.NewHeroImageFetcher(minioClient, c)
 	itemImageFetcher := s3.NewItemImageFetcher(minioClient, c)
@@ -111,9 +113,10 @@ func main() {
 	d2ptClient := d2pt.NewClient(&http.Client{})
 	stratzClient := cache.NewCachedStratzClient(stratz.NewClient(&http.Client{}, stratzToken), c)
 
-	questionService := service.NewQuestionService(questionRepo, d2ptClient, stratzClient, heroRepo, itemRepo, heroImageFetcher, itemImageFetcher)
+	questionService := service.NewQuestionService(questionRepo, matchRepo, steamAccountRepo, d2ptClient, stratzClient, heroRepo, itemRepo, stratzClient, heroImageFetcher)
+	matchService := service.NewMatchService(matchRepo, itemImageFetcher)
 	userService := service.NewUserService(userRepo)
-	playerService := service.NewPlayerService(stratzClient)
+	playerService := service.NewSteamAccountService(stratzClient)
 
 	collager := NewDefaultCollager(c)
 
@@ -122,6 +125,7 @@ func main() {
 		logger,
 		collager,
 		questionService,
+		matchService,
 		userService,
 		playerService,
 	)

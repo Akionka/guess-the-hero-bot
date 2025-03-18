@@ -7,11 +7,18 @@ import (
 	"github.com/google/uuid"
 )
 
-type Question struct {
-	ID uuid.UUID `db:"question_id"`
+type QuestionID uuid.UUID
 
-	Match  Match        `db:"-"`
-	Player *MatchPlayer `db:"-"`
+func (id QuestionID) String() string {
+	return uuid.UUID(id).String()
+}
+
+// Question is an aggregate root representing a question based on a Dota 2 match.
+type Question struct {
+	ID QuestionID `db:"question_id"`
+
+	MatchID  MatchID `db:"match_id"`
+	PlayerID SteamID `db:"player_steam_id"`
 
 	Options []Option `db:"-"`
 
@@ -21,7 +28,7 @@ type Question struct {
 
 func (q *Question) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("uuid", q.ID.String()),
+		slog.String("id", q.ID.String()),
 	)
 }
 
@@ -38,15 +45,21 @@ func (o *Option) LogValue() slog.Value {
 	)
 }
 
+type UserAnswerID uuid.UUID
+
+func (id UserAnswerID) String() string {
+	return uuid.UUID(id).String()
+}
+
 type UserAnswer struct {
 	Option     `db:"-"`
-	ID         uuid.UUID `db:"user_answer_id"`
-	AnsweredAt time.Time `db:"answered_at"`
+	ID         UserAnswerID `db:"user_answer_id"`
+	AnsweredAt time.Time    `db:"answered_at"`
 }
 
 func (a *UserAnswer) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("uuid", a.ID.String()),
+		slog.String("id", a.ID.String()),
 		slog.Any("option", a.Option),
 	)
 }

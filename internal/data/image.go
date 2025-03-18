@@ -13,6 +13,9 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
+// Image is a wrapper around the image.Image interface to implement pgtype.BytesScanner and pgtype.BytesValuer.
+// 
+// This allows us to scan and value images from the database.
 type Image struct {
 	image.Image
 }

@@ -24,11 +24,11 @@ func NewHeroRepository(db *pgxpool.Pool, logger *slog.Logger) *HeroRepository {
 	}
 }
 
-func (r *HeroRepository) GetHeroByID(ctx context.Context, id int) (data.Hero, error) {
+func (r *HeroRepository) GetHero(ctx context.Context, id data.HeroID) (data.Hero, error) {
 	const sql = `SELECT h.hero_id, h.display_name, h.short_name FROM heroes h WHERE h.hero_id = $1`
 	var hero data.Hero
 
-	r.logger.DebugContext(ctx, "getting hero by id", slog.Int("id", id))
+	r.logger.DebugContext(ctx, "getting hero by id", slog.Int("id", int(id)))
 	rows, err := r.db.Query(ctx, sql, id)
 	if err != nil {
 		return hero, fmt.Errorf("error getting hero by id: %w", err)
@@ -43,7 +43,7 @@ func (r *HeroRepository) GetHeroByID(ctx context.Context, id int) (data.Hero, er
 	return hero, nil
 }
 
-func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, ids []int) ([]data.Hero, error) {
+func (r *HeroRepository) GetHeroes(ctx context.Context, ids []data.HeroID) ([]data.Hero, error) {
 	const sql = `SELECT h.hero_id, h.display_name, h.short_name FROM heroes h WHERE h.hero_id = ANY($1)`
 
 	r.logger.DebugContext(ctx, "getting heroes by ids", slog.Any("ids", ids))
@@ -61,7 +61,7 @@ func (r *HeroRepository) GetHeroesByIDs(ctx context.Context, ids []int) ([]data.
 		return nil, data.ErrNotFound
 	}
 
-	idIndex := make(map[int]int)
+	idIndex := make(map[data.HeroID]int)
 	for i, id := range ids {
 		idIndex[id] = i
 	}

@@ -10,22 +10,28 @@ import (
 	"github.com/google/uuid"
 )
 
+type UserID uuid.UUID
+
+func (id UserID) String() string {
+	return uuid.UUID(id).String()
+}
+
+// User is an aggregate root representing a user of the bot.
 type User struct {
-	ID         uuid.UUID     `db:"user_id"`
-	TelegramID int64         `db:"telegram_id"`
-	Username   string        `db:"username"`
-	FirstName  string        `db:"first_name"`
-	LastName   string        `db:"last_name"`
-	CreatedAt  time.Time     `db:"created_at"`
-	SteamAcc   *SteamAccount `db:"-"`
+	ID             UserID    `db:"user_id"`
+	TelegramID     int64     `db:"telegram_id"`
+	Username       string    `db:"username"`
+	FirstName      string    `db:"first_name"`
+	LastName       string    `db:"last_name"`
+	CreatedAt      time.Time `db:"created_at"`
+	SteamAccountID *SteamID  `db:"player_steam_id"`
 }
 
 func (u *User) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("uuid", u.ID.String()),
+		slog.String("id", u.ID.String()),
 		slog.Int64("telegram_id", u.TelegramID),
 		slog.String("telegram_username", u.Username),
-		slog.Any("steam", u.SteamAcc),
 	)
 }
 
@@ -47,12 +53,10 @@ func (u *User) MarshalBinary() (data []byte, err error) {
 	binary.Write(buf, order, uint8(len(b)))
 	binary.Write(buf, order, b)
 
-	if u.SteamAcc == nil {
+	if u.SteamAccountID == nil {
 		binary.Write(buf, order, uint32(0))
 	} else {
-		b, _ = u.SteamAcc.MarshalBinary()
-		binary.Write(buf, order, uint32(len(b)))
-		binary.Write(buf, order, b)
+		binary.Write(buf, order, u.SteamAccountID)
 	}
 
 	return buf.Bytes(), nil
@@ -75,12 +79,12 @@ func (u *User) UnmarshalBinary(data []byte) error {
 	r.Read(timeBytes)
 	u.CreatedAt.UnmarshalBinary(timeBytes)
 
-	var steamAccLen uint32
-	binary.Read(r, order, &steamAccLen)
-	if steamAccLen != 0 {
-		steamAccBytes := make([]byte, steamAccLen)
-		r.Read(steamAccBytes)
-		u.SteamAcc.UnmarshalBinary(steamAccBytes)
+	var steamID SteamID
+	binary.Read(r, order, &steamID)
+	if steamID == 0 {
+		u.SteamAccountID = nil
+	} else {
+		u.SteamAccountID = &steamID
 	}
 
 	return nil

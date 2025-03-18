@@ -24,11 +24,11 @@ func NewItemRepository(db *pgxpool.Pool, logger *slog.Logger) *ItemRepository {
 	}
 }
 
-func (r *ItemRepository) GetItemByID(ctx context.Context, id int) (data.Item, error) {
+func (r *ItemRepository) GetItem(ctx context.Context, id data.ItemID) (data.Item, error) {
 	const sql = `SELECT i.item_id, i.display_name, i.short_name FROM items i WHERE i.item_id = $1`
 	var item data.Item
 
-	r.logger.DebugContext(ctx, "getting item by id", slog.Int("id", id))
+	r.logger.DebugContext(ctx, "getting item by id", slog.Int("id", int(id)))
 	rows, err := r.db.Query(ctx, sql, id)
 	if err != nil {
 		return item, fmt.Errorf("error getting item by id: %w", err)
@@ -43,10 +43,14 @@ func (r *ItemRepository) GetItemByID(ctx context.Context, id int) (data.Item, er
 	return item, nil
 }
 
-func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []int) ([]data.Item, error) {
+func (r *ItemRepository) GetItems(ctx context.Context, ids []data.ItemID) ([]data.Item, error) {
 	const sql = `SELECT i.item_id, i.display_name, i.short_name FROM items i WHERE i.item_id = ANY($1)`
 
 	r.logger.DebugContext(ctx, "getting items by ids", slog.Any("ids", ids))
+	if len(ids) == 0 {
+		return []data.Item{}, nil
+	}
+
 	rows, err := r.db.Query(ctx, sql, ids)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items by ids: %w", err)
@@ -61,13 +65,13 @@ func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []int) ([]data.I
 		return nil, data.ErrNotFound
 	}
 
-	idIndex := make(map[int]int)
+	idIdx := make(map[data.ItemID]int)
 	for i, id := range ids {
-		idIndex[id] = i
+		idIdx[id] = i
 	}
 
 	slices.SortStableFunc(items, func(i1 data.Item, i2 data.Item) int {
-		return cmp.Compare(idIndex[i1.ID], idIndex[i2.ID])
+		return cmp.Compare(idIdx[i1.ID], idIdx[i2.ID])
 	})
 
 	return items, nil

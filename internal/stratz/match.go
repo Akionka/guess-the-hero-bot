@@ -2,7 +2,6 @@ package stratz
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/akionka/akionkabot/internal/data"
@@ -12,8 +11,8 @@ type MatchQueryData struct {
 	Match Match `json:"match"`
 }
 
-func (c *Client) GetMatchByID(ctx context.Context, matchID int64) (*data.Match, error) {
-	body, err := c.query(context.Background(), fmt.Sprintf(`
+func (c *Client) GetMatch(ctx context.Context, matchID data.MatchID) (*data.Match, error) {
+	qr, err := query[MatchQueryData](context.Background(), c, fmt.Sprintf(`
 		{
 			match(id: %d) {
 				id
@@ -34,35 +33,44 @@ func (c *Client) GetMatchByID(ctx context.Context, matchID int64) (*data.Match, 
 					item5Id
 					isRadiant
 					position
-					steamAccount {
-						id
-						name
-						proSteamAccount {
-							name
-						}
-					}
+					steamAccountId
 				}
 			}
 		}`, matchID))
 	if err != nil {
-		return nil, fmt.Errorf("graphql query failed: %w", err)
+		return nil, err
 	}
-	defer body.Close()
-
-	var qr queryResponse[MatchQueryData]
-	if err = json.NewDecoder(body).Decode(&qr); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if qr.Error != nil {
-		return nil, fmt.Errorf("graphql error: %s", qr.Error)
-	}
-
-	if qr.Data == nil {
-		return nil, fmt.Errorf("no data in response")
-	}
-
-	m := qr.Data.Match.toDomain()
+	m := qr.Match.toDomain()
 
 	return &m, nil
+}
+
+func (c *Client) GetMatchSteamAccounts(ctx context.Context, matchID data.MatchID) ([]data.SteamAccount, error) {
+	qr, err := query[MatchQueryData](context.Background(), c, fmt.Sprintf(`
+	{
+		match(id: %d) {
+			players {
+				steamAccount {
+					id
+					name
+					proSteamAccount {
+						name
+					}
+				}
+			}
+		}
+	}`, matchID))
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := make([]data.SteamAccount, 0, len(qr.Match.Players))
+	for _, p := range qr.Match.Players {
+		if p.SteamAccount == nil {
+			continue
+		}
+		accounts = append(accounts, p.SteamAccount.toDomain())
+	}
+
+	return accounts, nil
 }

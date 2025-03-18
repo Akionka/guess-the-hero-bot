@@ -30,7 +30,7 @@ func (s *UserService) GetUserByTelegramID(ctx context.Context, id int64) (*data.
 
 func (s *UserService) CreateUser(ctx context.Context, user *data.User) (*data.User, error) {
 	user = &data.User{
-		ID:         uuid.Must(uuid.NewV7()),
+		ID:         data.UserID(uuid.Must(uuid.NewV7())),
 		TelegramID: user.TelegramID,
 		Username:   user.Username,
 		FirstName:  user.FirstName,
@@ -50,9 +50,9 @@ func (s *UserService) CreateUser(ctx context.Context, user *data.User) (*data.Us
 	return user, nil
 }
 
-func (s *UserService) ConnectSteamAccount(ctx context.Context, id uuid.UUID, account *data.SteamAccount) error {
+func (s *UserService) ConnectSteamAccount(ctx context.Context, id data.UserID, steamID data.SteamID) error {
 	return s.repo.UpdateByID(ctx, id, func(user *data.User) (bool, error) {
-		user.SteamAcc = account
+		user.SteamAccountID = &steamID
 		return true, nil
 	})
 }

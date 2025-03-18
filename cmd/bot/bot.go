@@ -18,16 +18,18 @@ type Bot struct {
 
 	collager        Collager
 	questionService *service.QuestionService
+	matchService    *service.MatchService
 	userService     *service.UserService
-	playerService   *service.PlayerService
+	playerService   *service.SteamAccountService
 }
 
-func NewBot(bot *telego.Bot, logger *TelegoLogger, collager Collager, questionService *service.QuestionService, userService *service.UserService, playerService *service.PlayerService) *Bot {
+func NewBot(bot *telego.Bot, logger *TelegoLogger, collager Collager, questionService *service.QuestionService, matchService *service.MatchService, userService *service.UserService, playerService *service.SteamAccountService) *Bot {
 	return &Bot{
 		Bot:             bot,
 		logger:          logger,
 		collager:        collager,
 		questionService: questionService,
+		matchService:    matchService,
 		userService:     userService,
 		playerService:   playerService,
 	}

@@ -24,8 +24,8 @@ func NewCachedStratzClient(client *stratz.Client, cache *cache.Cache) StratzClie
 	}
 }
 
-func (c StratzClient) GetMatchByID(ctx context.Context, matchID int64) (*data.Match, error) {
-	key := matchKey(matchID)
+func (c StratzClient) GetMatch(ctx context.Context, id data.MatchID) (*data.Match, error) {
+	key := matchKey(id)
 
 	v, found := c.cache.Get(key)
 	if found {
@@ -33,7 +33,7 @@ func (c StratzClient) GetMatchByID(ctx context.Context, matchID int64) (*data.Ma
 	}
 
 	v, err, _ := c.g.Do(key, func() (any, error) {
-		return c.client.GetMatchByID(ctx, matchID)
+		return c.client.GetMatch(ctx, id)
 	})
 	m := v.(*data.Match)
 	if err != nil {
@@ -45,8 +45,8 @@ func (c StratzClient) GetMatchByID(ctx context.Context, matchID int64) (*data.Ma
 	return m, err
 }
 
-func (c StratzClient) GetPlayerByID(ctx context.Context, steamID int64) (*data.SteamAccount, error) {
-	key := playerKey(steamID)
+func (c StratzClient) GetSteamAccount(ctx context.Context, id data.SteamID) (*data.SteamAccount, error) {
+	key := playerKey(id)
 
 	v, found := c.cache.Get(key)
 	if found {
@@ -54,7 +54,7 @@ func (c StratzClient) GetPlayerByID(ctx context.Context, steamID int64) (*data.S
 	}
 
 	v, err, _ := c.g.Do(key, func() (any, error) {
-		return c.client.GetPlayerByID(ctx, steamID)
+		return c.client.GetSteamAccount(ctx, id)
 	})
 	p := v.(*data.SteamAccount)
 	if err != nil {
@@ -66,10 +66,35 @@ func (c StratzClient) GetPlayerByID(ctx context.Context, steamID int64) (*data.S
 	return p, err
 }
 
-func matchKey(matchID int64) string {
-	return fmt.Sprintf("stratz_match_%d", matchID)
+func (c StratzClient) GetMatchSteamAccounts(ctx context.Context, id data.MatchID) ([]data.SteamAccount, error) {
+	key := matchKeySteamAccounts(id)
+
+	v, found := c.cache.Get(key)
+	if found {
+		return v.([]data.SteamAccount), nil
+	}
+
+	v, err, _ := c.g.Do(key, func() (any, error) {
+		return c.client.GetMatchSteamAccounts(ctx, id)
+	})
+	steamAccounts := v.([]data.SteamAccount)
+	if err != nil {
+		return steamAccounts, err
+	}
+
+	c.cache.Set(key, steamAccounts, cache.DefaultExpiration)
+
+	return steamAccounts, err
 }
 
-func playerKey(steamID int64) string {
-	return fmt.Sprintf("stratz_player_%d", steamID)
+func matchKey(id data.MatchID) string {
+	return fmt.Sprintf("stratz_match_%d", id)
+}
+
+func matchKeySteamAccounts(id data.MatchID) string {
+	return fmt.Sprintf("stratz_match_steam_accounts_%d", id)
+}
+
+func playerKey(id data.SteamID) string {
+	return fmt.Sprintf("stratz_player_%d", id)
 }

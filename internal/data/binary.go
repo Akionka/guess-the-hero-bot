@@ -19,11 +19,11 @@ func readBinaryString(r io.Reader, order binary.ByteOrder, dst *string) error {
 	}
 
 	if length == 0 {
+		*dst = ""
 		return nil
 	}
 
 	buf := make([]byte, length)
-
 	err := binary.Read(r, order, buf)
 
 	*dst = unsafe.String(&buf[0], length)

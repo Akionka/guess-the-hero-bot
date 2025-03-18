@@ -22,7 +22,7 @@ func NewUserRepository(repo *postgres.UserRepository, cache *cache.Cache) *UserR
 	}
 }
 
-func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*data.User, error) {
+func (r *UserRepository) GetUser(ctx context.Context, id data.UserID) (*data.User, error) {
 	key := userKey(id)
 	user := &data.User{}
 
@@ -63,7 +63,7 @@ func (r *UserRepository) GetUserByTelegramID(ctx context.Context, id int64) (*da
 
 }
 
-func (r *UserRepository) CreateUser(ctx context.Context, user *data.User) (uuid.UUID, error) {
+func (r *UserRepository) CreateUser(ctx context.Context, user *data.User) (data.UserID, error) {
 	userIDKey := userKey(user.ID)
 	userTgIDKey := userTgKey(user.TelegramID)
 
@@ -72,13 +72,13 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *data.User) (uuid.
 
 	userID, err := r.repo.CreateUser(ctx, user)
 	if err != nil {
-		return uuid.Nil, err
+		return data.UserID(uuid.Nil), err
 	}
 
 	return userID, nil
 }
 
-func (r *UserRepository) UpdateByID(ctx context.Context, id uuid.UUID, updateFn func(user *data.User) (bool, error)) error {
+func (r *UserRepository) UpdateByID(ctx context.Context, id data.UserID, updateFn func(user *data.User) (bool, error)) error {
 	userKeyID := userKey(id)
 
 	v, found := r.cache.Get(userKeyID)
@@ -93,7 +93,7 @@ func (r *UserRepository) UpdateByID(ctx context.Context, id uuid.UUID, updateFn 
 	return r.repo.UpdateByID(ctx, id, updateFn)
 }
 
-func userKey(id uuid.UUID) string {
+func userKey(id data.UserID) string {
 	return fmt.Sprintf("user_%s", id)
 }
 
