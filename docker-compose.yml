@@ -9,8 +9,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - DATABASE_URL=postgres://user:password@db:5432/mydb?sslmode=disable
-      - BOT_TOKEN=925294587:AAFS1QWrK7VNBdbjlUrEgS1GPRX8SBD6HN0
+      - VAULT_TOKEN=${VAULT_TOKEN}
     depends_on:
       - db
       - s3
@@ -49,7 +48,7 @@ services:
       VAULT_ADDR: "http://0.0.0.0:8200"
       VAULT_LOCAL_CONFIG: '{"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h", "ui": true}'
     volumes:
-      - vauldata:/vault/file
+      - vaultdata:/vault/file
     command: server
     restart: unless-stopped
     cap_add:

@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM golang:1.24.1 AS builder
+FROM golang:1.24.5 AS builder
 
 # Prebuild Go std
 RUN CGO_ENABLED=0 go install std
